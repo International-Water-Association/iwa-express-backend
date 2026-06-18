@@ -70,6 +70,7 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-sugg-fm' },
   { method: 'GET', path: '/contact/get-featured-by-week/:id' },
   { method: 'POST', path: '/contact/get-contactSearch' },
+    { method: 'POST', path: '/people-search/query' },
 
   // Search / people
   { method: 'POST', path: '/search' },
@@ -208,7 +209,6 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
  */
 const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
   // Common lookup routes
-    { method: 'POST', path: '/people-search/query' },
 
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'GET', path: '/country' },
