@@ -637,15 +637,35 @@ app.all('/api/proxy/*', async (req, res) => {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    const responseText = await response.text();
+const responseText = await response.text();
 
-    res.status(response.status);
+res.status(response.status);
 
-    if (contentType.includes('application/json')) {
-      return res.json(responseText ? JSON.parse(responseText) : {});
-    }
+/**
+ * Some Connect Plus routes may return non-JSON content.
+ * Do not block /people-search/query only because of content-type.
+ */
+if (cleanTargetPath === '/people-search/query') {
+  res.setHeader('Content-Type', contentType || 'text/plain');
+  return res.send(responseText);
+}
 
-    return res.status(502).json({ error: 'Proxy target did not return JSON' });
+if (contentType.includes('application/json')) {
+  try {
+    return res.json(responseText ? JSON.parse(responseText) : {});
+  } catch (parseError) {
+    return res.status(502).json({
+      error: 'Proxy target returned invalid JSON',
+      targetStatus: response.status,
+    });
+  }
+}
+
+return res.status(502).json({
+  error: 'Proxy target did not return JSON',
+  targetStatus: response.status,
+  contentType,
+});
   } catch (error) {
     if (error.name === 'AbortError') {
       return res.status(504).json({ error: 'Proxy request timed out' });
