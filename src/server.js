@@ -156,6 +156,34 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/c-newsletters/emailletter-metrics/:id' },
   { method: 'GET', path: '/get-mynotification/:id' },
   { method: 'GET', path: '/update-mynotification/:id' },
+  // Content library
+  { method: 'POST', path: '/content-lib/get-autocomplete' },
+  { method: 'POST', path: '/content-lib/get-autocomplete-author' },
+  { method: 'POST', path: '/content-lib/get-autocomplete-tags' },
+  { method: 'POST', path: '/content-lib/generatePresignedUrl' },
+  { method: 'GET', path: '/content-lib/:id' },
+  { method: 'GET', path: '/content-lib/getDocumentBase/:id' },
+  { method: 'GET', path: '/content-lib/user-doc-rating/:id' },
+  { method: 'POST', path: '/content-lib/search' },
+  { method: 'POST', path: '/content-lib/get-types' },
+  { method: 'GET', path: '/content-lib/get-event-info' },
+
+  // Ratings
+  { method: 'GET', path: '/cl-rating/:id' },
+  { method: 'POST', path: '/cl-rating' },
+
+  // Bookmarks
+  { method: 'GET', path: '/cl-bookmark' },
+  { method: 'GET', path: '/cl-bookmark/:id' },
+  { method: 'POST', path: '/cl-bookmark' },
+  { method: 'DELETE', path: '/cl-bookmark/:id' },
+
+  // Blocks
+  { method: 'GET', path: '/cl-block-url/:id' },
+  { method: 'GET', path: '/cl-block-item/:id' },
+
+  // Activity log
+  { method: 'POST', path: '/activity-log/create' },
 
   // Community library / bookmarks
   { method: 'GET', path: '/community-libraries' },
