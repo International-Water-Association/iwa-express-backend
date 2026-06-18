@@ -622,7 +622,7 @@ app.all('/api/proxy/*', async (req, res) => {
     }
 
     const requestBodyString = JSON.stringify(req.body || {});
-    const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 10000);
+    const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
 
     if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
       return res.status(413).json({ error: 'Request body too large' });
