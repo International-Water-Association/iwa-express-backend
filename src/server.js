@@ -23,6 +23,10 @@ const allowedOrigins = (process.env.FRONTEND_ALLOWED_ORIGINS || '')
 
 app.use(cors({
   origin(origin, callback) {
+    /**
+     * Keep this flexible for CORS preflight/health,
+     * but actual proxy endpoints are protected by isBrowserRequest().
+     */
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
@@ -75,16 +79,19 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/event-attendee/get-country' },
   { method: 'GET', path: '/event-attendee/get-guest-token' },
   { method: 'GET', path: '/event-attendee/get-sub-event/:key' },
-{ method: 'POST', path: '/event-registration/order-lines-by-email' },
+
+  { method: 'POST', path: '/event-registration/order-lines-by-email' },
   { method: 'POST', path: '/event-registration/check-already-paid' },
   { method: 'POST', path: '/event-registration/getUserByEmail' },
+
   { method: 'POST', path: '/event-attendee/validate-email' },
   { method: 'POST', path: '/event-attendee/send-email' },
   { method: 'POST', path: '/event/activity-log' },
-    { method: 'POST', path: '/event-attendee/get-order-summary' },
-      { method: 'POST', path: '/event-attendee/update-form-data' },
+  { method: 'POST', path: '/event-attendee/get-order-summary' },
+  { method: 'POST', path: '/event-attendee/update-form-data' },
   { method: 'GET', path: '/event-attendee/get-form-data/:id' },
-   { method: 'POST', path: '/event-registration/sales-order' },
+
+  { method: 'POST', path: '/event-registration/sales-order' },
   { method: 'POST', path: '/event-registration/sales-order-lines' },
   { method: 'POST', path: '/event-registration/receipt' },
   { method: 'POST', path: '/event-registration/draft-count' },
@@ -102,14 +109,9 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-attendee/apply-discount-code' },
   { method: 'POST', path: '/event-attendee/prepare-additional-ticket' },
   { method: 'POST', path: '/event-attendee/get-attendee-by-sales-order-id' },
-
 ];
 
-const EVENT_GUEST_TOKEN_ROUTES = [
-  
-
- 
-];
+const EVENT_GUEST_TOKEN_ROUTES = [];
 
 function getClientIp(req) {
   return (
@@ -190,6 +192,70 @@ function createTokenBinding(req) {
 
 function isAllowedOrigin(origin) {
   return !!origin && allowedOrigins.includes(origin);
+}
+
+/**
+ * Blocks normal Postman/curl/direct API calls.
+ *
+ * Important:
+ * A determined attacker can still spoof browser headers.
+ * This is not a replacement for token expiry, server-side auth,
+ * route allowlisting, and permission checks.
+ */
+function isBrowserRequest(req) {
+  const origin = req.headers.origin || '';
+  const referer = req.headers.referer || '';
+  const secFetchSite = req.headers['sec-fetch-site'];
+  const secFetchMode = req.headers['sec-fetch-mode'];
+  const secFetchDest = req.headers['sec-fetch-dest'];
+  const userAgent = req.headers['user-agent'] || '';
+
+  if (!origin) {
+    return false;
+  }
+
+  if (!isAllowedOrigin(origin)) {
+    return false;
+  }
+
+  if (!referer || !referer.startsWith(`${origin}/`)) {
+    return false;
+  }
+
+  /**
+   * Browser fetch/XHR sends Sec-Fetch-* headers.
+   * Postman/curl usually do not send these unless manually spoofed.
+   */
+  if (!secFetchSite || !secFetchMode || !secFetchDest) {
+    return false;
+  }
+
+  if (!['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)) {
+    return false;
+  }
+
+  /**
+   * Angular HttpClient/fetch usually sends mode "cors".
+   */
+  if (!['cors', 'same-origin'].includes(secFetchMode)) {
+    return false;
+  }
+
+  /**
+   * XHR/fetch usually sends dest "empty".
+   */
+  if (secFetchDest !== 'empty') {
+    return false;
+  }
+
+  /**
+   * Basic block for common API clients.
+   */
+  if (/postman|curl|insomnia|httpie|wget|python-requests|axios/i.test(userAgent)) {
+    return false;
+  }
+
+  return true;
 }
 
 function isUnsafePath(targetPath) {
@@ -381,8 +447,8 @@ app.get('/api/proxy-token', (req, res) => {
   const origin = req.headers.origin || '';
   const clientIp = getClientIp(req);
 
-  if (!isAllowedOrigin(origin)) {
-    return res.status(403).json({ error: 'Origin not allowed' });
+  if (!isBrowserRequest(req)) {
+    return res.status(403).json({ error: 'Browser request required' });
   }
 
   if (isRateLimited(`proxy-token:${clientIp}:${origin}`, 10, 60 * 1000)) {
@@ -420,8 +486,8 @@ app.get('/api/event-guest-token', (req, res) => {
   const origin = req.headers.origin || '';
   const clientIp = getClientIp(req);
 
-  if (!isAllowedOrigin(origin)) {
-    return res.status(403).json({ error: 'Origin not allowed' });
+  if (!isBrowserRequest(req)) {
+    return res.status(403).json({ error: 'Browser request required' });
   }
 
   if (isRateLimited(`event-guest-token:${clientIp}:${origin}`, 10, 60 * 1000)) {
@@ -457,8 +523,8 @@ app.all('/api/proxy/*', async (req, res) => {
     const origin = req.headers.origin || '';
     const clientIp = getClientIp(req);
 
-    if (!isAllowedOrigin(origin)) {
-      return res.status(403).json({ error: 'Origin not allowed' });
+    if (!isBrowserRequest(req)) {
+      return res.status(403).json({ error: 'Browser request required' });
     }
 
     const method = req.method.toUpperCase();
@@ -505,6 +571,11 @@ app.all('/api/proxy/*', async (req, res) => {
       }
 
       const serverToken = getServerTokenForPath(cleanTargetPath);
+
+      if (!serverToken) {
+        return res.status(500).json({ error: 'Missing server API token' });
+      }
+
       authorizationHeader = `Bearer ${serverToken}`;
     }
 
@@ -541,6 +612,11 @@ app.all('/api/proxy/*', async (req, res) => {
         }
 
         const serverToken = getServerTokenForPath(cleanTargetPath);
+
+        if (!serverToken) {
+          return res.status(500).json({ error: 'Missing server API token' });
+        }
+
         authorizationHeader = `Bearer ${serverToken}`;
       }
     }
@@ -550,6 +626,10 @@ app.all('/api/proxy/*', async (req, res) => {
 
     if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
       return res.status(413).json({ error: 'Request body too large' });
+    }
+
+    if (!process.env.STRAPI_URL) {
+      return res.status(500).json({ error: 'Missing STRAPI_URL' });
     }
 
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
