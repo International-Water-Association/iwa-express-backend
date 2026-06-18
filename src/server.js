@@ -75,7 +75,6 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/search' },
   { method: 'POST', path: '/search/suggest' },
   { method: 'GET', path: '/people-search/token' },
-  { method: 'POST', path: '/people-search/query' },
   { method: 'GET', path: '/people-search/accounts' },
   { method: 'POST', path: '/people-search/account' },
   { method: 'POST', path: '/people-search/accounts-by-country' },
@@ -209,6 +208,8 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
  */
 const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
   // Common lookup routes
+    { method: 'POST', path: '/people-search/query' },
+
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'GET', path: '/country' },
   { method: 'GET', path: '/region' },
