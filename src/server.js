@@ -16,6 +16,13 @@ app.use(helmet({
 
 app.use(express.json({ limit: '1mb' }));
 
+/**
+ * Origins
+ *
+ * Required Heroku config:
+ *
+ * CONNECT_PLUS_ALLOWED_ORIGINS=http://localhost:4200,https://partial.iwaconnectplus.org,https://www.iwaconnectplus.org,https://partial.iwaconnectplus.com,https://www.iwaconnectplus.com
+ */
 function parseOriginList(value) {
   return String(value || '')
     .split(',')
@@ -23,11 +30,6 @@ function parseOriginList(value) {
     .filter(Boolean);
 }
 
-/**
- * Only this env is needed now.
- *
- * CONNECT_PLUS_ALLOWED_ORIGINS=http://localhost:4200,https://partial.iwaconnectplus.org,https://www.iwaconnectplus.org,https://partial.iwaconnectplus.com,https://www.iwaconnectplus.com
- */
 const connectPlusAllowedOrigins = parseOriginList(
   process.env.CONNECT_PLUS_ALLOWED_ORIGINS
 );
@@ -44,11 +46,14 @@ function isAllowedOrigin(origin) {
   return connectPlusAllowedOrigins.includes(cleanOrigin(origin));
 }
 
-app.use(cors({
+/**
+ * CORS
+ */
+const corsOptions = {
   origin(origin, callback) {
     /**
-     * Allow no-origin requests.
-     * Browser requests are still validated later by isBrowserRequest().
+     * Allow no-origin requests for health/server-to-server.
+     * Browser proxy endpoints are still validated later.
      */
     if (!origin) {
       return callback(null, true);
@@ -73,7 +78,36 @@ app.use(cors({
     'Accept',
   ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-}));
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+/**
+ * CORS error handler.
+ * Keeps blocked-origin errors readable instead of browser showing only generic CORS failure.
+ */
+app.use((err, req, res, next) => {
+  if (err && err.message && err.message.includes('Origin not allowed')) {
+    const origin = req.headers.origin || '';
+
+    console.error('CORS blocked:', {
+      origin,
+      allowedOrigins: connectPlusAllowedOrigins,
+      method: req.method,
+      path: req.originalUrl,
+    });
+
+    return res.status(403).json({
+      error: 'Origin not allowed',
+      origin,
+      allowedOrigins: connectPlusAllowedOrigins,
+    });
+  }
+
+  return next(err);
+});
 
 const rateLimitStore = new Map();
 
@@ -83,7 +117,8 @@ const BLOCKED_ROUTES = [
 ];
 
 /**
- * Connect Plus routes that require the logged-in user's Authorization token.
+ * Routes that must use the logged-in user's HLAuthToken.
+ * These routes must receive Authorization from browser and forward it unchanged.
  */
 const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   // User / profile
@@ -233,7 +268,7 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
 ];
 
 /**
- * Connect Plus / Join routes that use X-Proxy-Token and server-side CONNECT_PLUS_API_TOKEN.
+ * Routes that use short-lived proxy token and server-side CONNECT_PLUS_API_TOKEN.
  */
 const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
   // Common lookup routes
@@ -358,39 +393,21 @@ function normalizePath(value) {
 
   let path = String(value).trim();
 
-  /**
-   * Remove query string and hash.
-   * Example:
-   * /group/getMyGroups?random=57462 => /group/getMyGroups
-   */
   path = path.split('?')[0].split('#')[0];
 
-  /**
-   * Decode safely.
-   * Prevent crash if malformed URI is received.
-   */
   try {
     path = decodeURIComponent(path);
   } catch {
-    // keep original path if decoding fails
+    // Keep original path if malformed URI is received.
   }
 
-  /**
-   * Normalize slashes.
-   */
   path = path.replace(/\\/g, '/');
   path = path.replace(/\/{2,}/g, '/');
 
-  /**
-   * Ensure path starts with /
-   */
   if (!path.startsWith('/')) {
     path = `/${path}`;
   }
 
-  /**
-   * Remove trailing slash except root.
-   */
   path = path.replace(/\/+$/, '');
 
   return path || '/';
@@ -424,7 +441,7 @@ function matchesRoute(routeList, method, path) {
 }
 
 function isConnectPlusRequest(req) {
-  const origin = req.headers.origin || '';
+  const origin = cleanOrigin(req.headers.origin || '');
   const projectHeader = String(req.headers['x-project'] || '').trim();
 
   if (projectHeader && projectHeader !== 'connectPlus') {
@@ -449,7 +466,7 @@ function createTokenBinding(req) {
 }
 
 function isBrowserRequest(req) {
-  const origin = req.headers.origin || '';
+  const origin = cleanOrigin(req.headers.origin || '');
   const referer = req.headers.referer || '';
   const secFetchSite = req.headers['sec-fetch-site'];
   const secFetchMode = req.headers['sec-fetch-mode'];
@@ -466,16 +483,14 @@ function isBrowserRequest(req) {
 
   /**
    * Do not force Referer.
-   * Some browsers/privacy settings/login redirects may omit it.
-   * But if Referer exists, it must match the Origin.
+   * But if present, it must belong to the same origin.
    */
-  if (referer && !referer.startsWith(`${cleanOrigin(origin)}/`)) {
+  if (referer && !referer.startsWith(`${origin}/`)) {
     return false;
   }
 
   /**
    * Do not force Sec-Fetch headers.
-   * Some browsers/webviews/extensions may omit them.
    * But if present, validate them.
    */
   if (
@@ -570,7 +585,7 @@ function getConnectPlusServerToken(cleanTargetPath) {
 }
 
 function safeJoinUrl(baseUrl, targetPath) {
-  const base = baseUrl.replace(/\/+$/, '');
+  const base = String(baseUrl || '').replace(/\/+$/, '');
   const path = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
   return `${base}${path}`;
 }
@@ -591,6 +606,7 @@ app.get('/api/proxy-token', (req, res) => {
     return res.status(403).json({
       error: 'Connect Plus origin required',
       origin,
+      allowedOrigins: connectPlusAllowedOrigins,
     });
   }
 
@@ -642,6 +658,7 @@ app.all('/api/proxy/*', async (req, res) => {
       return res.status(403).json({
         error: 'Connect Plus origin required',
         origin,
+        allowedOrigins: connectPlusAllowedOrigins,
       });
     }
 
@@ -690,23 +707,18 @@ app.all('/api/proxy/*', async (req, res) => {
 
     let authorizationHeader;
 
-    let authorizationHeader;
-
     if (isUserTokenRoute) {
       const userAuth = req.headers.authorization;
 
       if (!userAuth || !userAuth.startsWith('Bearer ')) {
         return res.status(401).json({
           error: 'User token required',
-          path: cleanTargetPath
+          path: cleanTargetPath,
         });
       }
 
       /**
-       * IMPORTANT:
-       * For logged-in Connect Plus routes, forward the user's HLAuthToken.
-       * Do not replace it with CONNECT_PLUS_API_TOKEN.
-       * This allows Strapi/backend to populate ctx.state.user properly.
+       * For logged-in Connect Plus routes, forward user's HLAuthToken.
        */
       authorizationHeader = userAuth;
     }
@@ -734,30 +746,13 @@ app.all('/api/proxy/*', async (req, res) => {
       authorizationHeader = `Bearer ${serverToken}`;
     }
 
-    if (isProxyTokenRoute) {
-      const proxyCheck = verifyProxyToken(req);
-
-      if (!proxyCheck.ok) {
-        return res.status(proxyCheck.status).json({ error: proxyCheck.error });
-      }
-
-      const serverToken = getConnectPlusServerToken(cleanTargetPath);
-
-      if (!serverToken) {
-        return res.status(500).json({
-          error: cleanTargetPath.toLowerCase().includes('webinar')
-            ? 'Missing WEBINAR_API_TOKEN'
-            : 'Missing CONNECT_PLUS_API_TOKEN',
-        });
-      }
-
-      authorizationHeader = `Bearer ${serverToken}`;
-    }
-
     const requestBodyString = JSON.stringify(req.body || {});
     const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
 
-    if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
+    if (
+      !['GET', 'HEAD'].includes(method) &&
+      requestBodyString.length > maxBodyBytes
+    ) {
       return res.status(413).json({ error: 'Request body too large' });
     }
 
@@ -766,6 +761,16 @@ app.all('/api/proxy/*', async (req, res) => {
     }
 
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
+
+    console.log('Connect Plus forwarding:', {
+      method,
+      cleanTargetPath,
+      targetUrl,
+      isUserTokenRoute,
+      isProxyTokenRoute,
+      hasAuthorization: !!authorizationHeader,
+      authType: isUserTokenRoute ? 'USER_TOKEN' : 'SERVER_TOKEN',
+    });
 
     const controller = new AbortController();
     const timeoutMs = Number(process.env.PROXY_TIMEOUT_MS || 100000);
@@ -813,6 +818,13 @@ app.all('/api/proxy/*', async (req, res) => {
       }
     }
 
+    console.error('Proxy target returned non-JSON:', {
+      targetUrl,
+      status: response.status,
+      contentType,
+      preview: responseText.slice(0, 300),
+    });
+
     return res.status(502).json({
       error: 'Proxy target did not return JSON',
       targetStatus: response.status,
@@ -831,6 +843,18 @@ app.all('/api/proxy/*', async (req, res) => {
       message: error.message,
     });
   }
+});
+
+/**
+ * Final error handler.
+ */
+app.use((err, req, res, next) => {
+  console.error('Unhandled middleware error:', err);
+
+  return res.status(500).json({
+    error: 'Internal middleware error',
+    message: err.message,
+  });
 });
 
 const port = process.env.PORT || 5000;
