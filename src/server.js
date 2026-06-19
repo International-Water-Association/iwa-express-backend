@@ -19,22 +19,46 @@ app.use(express.json({ limit: '1mb' }));
 function parseOriginList(value) {
   return String(value || '')
     .split(',')
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
 }
 
-const allowedOrigins = parseOriginList(process.env.FRONTEND_ALLOWED_ORIGINS);
+/**
+ * Only this env is needed now.
+ *
+ * CONNECT_PLUS_ALLOWED_ORIGINS=http://localhost:4200,https://partial.iwaconnectplus.org,https://www.iwaconnectplus.org,https://partial.iwaconnectplus.com,https://www.iwaconnectplus.com
+ */
 const connectPlusAllowedOrigins = parseOriginList(
   process.env.CONNECT_PLUS_ALLOWED_ORIGINS
 );
 
+function cleanOrigin(origin) {
+  return String(origin || '').trim().replace(/\/+$/, '');
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return false;
+  }
+
+  return connectPlusAllowedOrigins.includes(cleanOrigin(origin));
+}
+
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    /**
+     * Allow no-origin requests.
+     * Browser requests are still validated later by isBrowserRequest().
+     */
+    if (!origin) {
       return callback(null, true);
     }
 
-    return callback(new Error('Origin not allowed'));
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`Origin not allowed: ${origin}`));
   },
   credentials: true,
   allowedHeaders: [
@@ -55,6 +79,7 @@ const rateLimitStore = new Map();
 
 const BLOCKED_ROUTES = [
   { method: 'GET', path: '/event-admin/syncDB' },
+  { method: 'GET', path: '/membership/syncDB' },
 ];
 
 /**
@@ -75,11 +100,13 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/search' },
   { method: 'POST', path: '/search/suggest' },
   { method: 'GET', path: '/people-search/token' },
+  { method: 'POST', path: '/people-search/query' },
   { method: 'GET', path: '/people-search/accounts' },
   { method: 'POST', path: '/people-search/account' },
   { method: 'POST', path: '/people-search/accounts-by-country' },
   { method: 'POST', path: '/people-search/next' },
   { method: 'POST', path: '/people-search/report' },
+  { method: 'GET', path: '/people-search/getSearch' },
 
   // Groups / communities
   { method: 'GET', path: '/group/getMyGroups' },
@@ -155,6 +182,7 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/c-newsletters/emailletter-metrics/:id' },
   { method: 'GET', path: '/get-mynotification/:id' },
   { method: 'GET', path: '/update-mynotification/:id' },
+
   // Content library
   { method: 'POST', path: '/content-lib/get-autocomplete' },
   { method: 'POST', path: '/content-lib/get-autocomplete-author' },
@@ -183,6 +211,7 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
 
   // Activity log
   { method: 'POST', path: '/activity-log/create' },
+  { method: 'POST', path: '/activity-log/create-join' },
 
   // Community library / bookmarks
   { method: 'GET', path: '/community-libraries' },
@@ -204,18 +233,17 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
 ];
 
 /**
- * Connect Plus routes that use X-Proxy-Token and the server-side CONNECT_PLUS_API_TOKEN.
+ * Connect Plus / Join routes that use X-Proxy-Token and server-side CONNECT_PLUS_API_TOKEN.
  */
 const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
   // Common lookup routes
-
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'GET', path: '/country' },
   { method: 'GET', path: '/region' },
   { method: 'POST', path: '/tags' },
   { method: 'POST', path: '/authors' },
 
-  // Event routes used inside Connect Plus
+  // Event routes used inside Connect Plus / Join
   { method: 'POST', path: '/event/validateEmail' },
   { method: 'GET', path: '/event/getStateByCnty/:id' },
   { method: 'GET', path: '/event/country' },
@@ -223,7 +251,36 @@ const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event/getEvent' },
   { method: 'GET', path: '/event/GetMyWebinarRecordings/:id' },
   { method: 'POST', path: '/event-registration/states-by-country' },
-    { method: 'POST', path: '/people-search/query' },
+  { method: 'GET', path: '/event/getEventGuestRegToken' },
+
+  // Join / membership routes
+  { method: 'POST', path: '/membership/validateEmail' },
+  { method: 'POST', path: '/membership/insertUpdateMember' },
+  { method: 'POST', path: '/membership/getPrice' },
+  { method: 'GET', path: '/membership/getContactCol' },
+  { method: 'GET', path: '/membership/getDoc/:type/:id' },
+  { method: 'POST', path: '/membership/createMDiscountcode' },
+
+  // Join / contact server-token routes
+  { method: 'POST', path: '/contact/validate-user-email' },
+  { method: 'POST', path: '/contact/create-member-sales-order' },
+  { method: 'POST', path: '/contact/get-account-by-id' },
+  { method: 'POST', path: '/contact/check-account-by-name' },
+  { method: 'POST', path: '/contact/get-journals' },
+  { method: 'POST', path: '/contact/get-sales-order-total' },
+  { method: 'POST', path: '/contact/get-sales-order-invoice' },
+  { method: 'POST', path: '/contact/get-membership-email-data' },
+  { method: 'POST', path: '/contact/get-discount-ticket-types' },
+  { method: 'GET', path: '/contact/get-source-codes' },
+  { method: 'POST', path: '/contact/get-pricing-rules-by-ticket-type' },
+  { method: 'POST', path: '/contact/get-price-rule-variables' },
+  { method: 'POST', path: '/contact/create-source-code' },
+
+  // Join / renewal server-token routes
+  { method: 'POST', path: '/renewal/get-renewal-contact-data' },
+
+  // Others
+  { method: 'POST', path: '/others/sendEmailOther' },
 
   // Nomination
   { method: 'GET', path: '/nomination/getAllNomination/:id' },
@@ -325,10 +382,6 @@ function matchesRoute(routeList, method, path) {
   ));
 }
 
-function isAllowedOrigin(origin) {
-  return !!origin && allowedOrigins.includes(origin);
-}
-
 function isConnectPlusRequest(req) {
   const origin = req.headers.origin || '';
   const projectHeader = String(req.headers['x-project'] || '').trim();
@@ -337,10 +390,7 @@ function isConnectPlusRequest(req) {
     return false;
   }
 
-  if (
-    connectPlusAllowedOrigins.length > 0 &&
-    !connectPlusAllowedOrigins.includes(origin)
-  ) {
+  if (!isAllowedOrigin(origin)) {
     return false;
   }
 
@@ -348,7 +398,7 @@ function isConnectPlusRequest(req) {
 }
 
 function createTokenBinding(req) {
-  const origin = req.headers.origin || '';
+  const origin = cleanOrigin(req.headers.origin || '');
   const userAgent = req.headers['user-agent'] || '';
 
   return crypto
@@ -373,27 +423,39 @@ function isBrowserRequest(req) {
     return false;
   }
 
-  if (!referer || !referer.startsWith(`${origin}/`)) {
+  /**
+   * Do not force Referer.
+   * Some browsers/privacy settings/login redirects may omit it.
+   * But if Referer exists, it must match the Origin.
+   */
+  if (referer && !referer.startsWith(`${cleanOrigin(origin)}/`)) {
     return false;
   }
 
-  if (!secFetchSite || !secFetchMode || !secFetchDest) {
+  /**
+   * Do not force Sec-Fetch headers.
+   * Some browsers/webviews/extensions may omit them.
+   * But if present, validate them.
+   */
+  if (
+    secFetchSite &&
+    !['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)
+  ) {
     return false;
   }
 
-  if (!['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)) {
+  if (
+    secFetchMode &&
+    !['cors', 'same-origin'].includes(secFetchMode)
+  ) {
     return false;
   }
 
-  if (!['cors', 'same-origin'].includes(secFetchMode)) {
+  if (secFetchDest && secFetchDest !== 'empty') {
     return false;
   }
 
-  if (secFetchDest !== 'empty') {
-    return false;
-  }
-
-  if (/postman|curl|insomnia|httpie|wget|python-requests|axios/i.test(userAgent)) {
+  if (/postman|curl|insomnia|httpie|wget|python-requests/i.test(userAgent)) {
     return false;
   }
 
@@ -440,7 +502,7 @@ function verifyProxyToken(req) {
       return { ok: false, status: 401, error: 'Invalid proxy token type' };
     }
 
-    if (decoded.origin !== (req.headers.origin || '')) {
+    if (cleanOrigin(decoded.origin) !== cleanOrigin(req.headers.origin || '')) {
       return { ok: false, status: 401, error: 'Proxy token origin mismatch' };
     }
 
@@ -476,22 +538,29 @@ app.get('/health', (req, res) => {
   return res.json({
     ok: true,
     service: 'iwa-connectplus-express-proxy',
+    allowedOrigins: connectPlusAllowedOrigins,
   });
 });
 
 app.get('/api/proxy-token', (req, res) => {
-  const origin = req.headers.origin || '';
+  const origin = cleanOrigin(req.headers.origin || '');
   const clientIp = getClientIp(req);
 
   if (!isConnectPlusRequest(req)) {
-    return res.status(403).json({ error: 'Connect Plus origin required' });
+    return res.status(403).json({
+      error: 'Connect Plus origin required',
+      origin,
+    });
   }
 
   if (!isBrowserRequest(req)) {
-    return res.status(403).json({ error: 'Browser request required' });
+    return res.status(403).json({
+      error: 'Browser request required',
+      origin,
+    });
   }
 
-  if (isRateLimited(`proxy-token:${clientIp}:${origin}`, 10, 60 * 1000)) {
+  if (isRateLimited(`proxy-token:${clientIp}:${origin}`, 30, 60 * 1000)) {
     return res.status(429).json({ error: 'Too many proxy token requests' });
   }
 
@@ -525,15 +594,21 @@ app.get('/api/proxy-token', (req, res) => {
 
 app.all('/api/proxy/*', async (req, res) => {
   try {
-    const origin = req.headers.origin || '';
+    const origin = cleanOrigin(req.headers.origin || '');
     const clientIp = getClientIp(req);
 
     if (!isConnectPlusRequest(req)) {
-      return res.status(403).json({ error: 'Connect Plus origin required' });
+      return res.status(403).json({
+        error: 'Connect Plus origin required',
+        origin,
+      });
     }
 
     if (!isBrowserRequest(req)) {
-      return res.status(403).json({ error: 'Browser request required' });
+      return res.status(403).json({
+        error: 'Browser request required',
+        origin,
+      });
     }
 
     const method = req.method.toUpperCase();
@@ -563,10 +638,12 @@ app.all('/api/proxy/*', async (req, res) => {
     if (!isUserTokenRoute && !isProxyTokenRoute) {
       return res.status(403).json({
         error: 'Proxy route not allowed for Connect Plus',
+        method,
+        path: cleanTargetPath,
       });
     }
 
-    if (isRateLimited(`proxy:${clientIp}:${origin}`, 120, 60 * 1000)) {
+    if (isRateLimited(`proxy:${clientIp}:${origin}`, 300, 60 * 1000)) {
       return res.status(429).json({ error: 'Too many proxy requests' });
     }
 
@@ -637,42 +714,47 @@ app.all('/api/proxy/*', async (req, res) => {
     }
 
     const contentType = response.headers.get('content-type') || '';
-const responseText = await response.text();
+    const responseText = await response.text();
 
-res.status(response.status);
+    res.status(response.status);
 
-/**
- * Some Connect Plus routes may return non-JSON content.
- * Do not block /people-search/query only because of content-type.
- */
-if (cleanTargetPath === '/people-search/query') {
-  res.setHeader('Content-Type', contentType || 'text/plain');
-  return res.send(responseText);
-}
+    /**
+     * Some Connect Plus routes may return non-JSON content.
+     * Do not block /people-search/query only because of content-type.
+     */
+    if (cleanTargetPath === '/people-search/query') {
+      res.setHeader('Content-Type', contentType || 'text/plain');
+      return res.send(responseText);
+    }
 
-if (contentType.includes('application/json')) {
-  try {
-    return res.json(responseText ? JSON.parse(responseText) : {});
-  } catch (parseError) {
+    if (contentType.includes('application/json')) {
+      try {
+        return res.json(responseText ? JSON.parse(responseText) : {});
+      } catch {
+        return res.status(502).json({
+          error: 'Proxy target returned invalid JSON',
+          targetStatus: response.status,
+        });
+      }
+    }
+
     return res.status(502).json({
-      error: 'Proxy target returned invalid JSON',
+      error: 'Proxy target did not return JSON',
       targetStatus: response.status,
+      contentType,
+      preview: responseText.slice(0, 300),
     });
-  }
-}
-
-return res.status(502).json({
-  error: 'Proxy target did not return JSON',
-  targetStatus: response.status,
-  contentType,
-});
   } catch (error) {
     if (error.name === 'AbortError') {
       return res.status(504).json({ error: 'Proxy request timed out' });
     }
 
     console.error('Connect Plus proxy error:', error);
-    return res.status(500).json({ error: 'Failed to connect to target API' });
+
+    return res.status(500).json({
+      error: 'Failed to connect to target API',
+      message: error.message,
+    });
   }
 });
 
