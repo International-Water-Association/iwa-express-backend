@@ -70,7 +70,6 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-sugg-fm' },
   { method: 'GET', path: '/contact/get-featured-by-week/:id' },
   { method: 'POST', path: '/contact/get-contactSearch' },
-    { method: 'POST', path: '/people-search/query' },
 
   // Search / people
   { method: 'POST', path: '/search' },
@@ -224,6 +223,7 @@ const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event/getEvent' },
   { method: 'GET', path: '/event/GetMyWebinarRecordings/:id' },
   { method: 'POST', path: '/event-registration/states-by-country' },
+    { method: 'POST', path: '/people-search/query' },
 
   // Nomination
   { method: 'GET', path: '/nomination/getAllNomination/:id' },
