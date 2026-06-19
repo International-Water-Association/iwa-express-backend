@@ -627,10 +627,10 @@ function safeJoinUrl(baseUrl, targetPath) {
 
 function getServerTokenForPath(cleanTargetPath) {
   if (cleanTargetPath.toLowerCase().includes('webinar')) {
-    return process.env.WEBINAR_API_TOKEN;
+    return process.env.CONNECT_PLUS_API_TOKEN;
   }
 
-  return process.env.EVENT_API_TOKEN;
+  return process.env.CONNECT_PLUS_API_TOKEN;
 }
 
 app.get('/health', (req, res) => {
