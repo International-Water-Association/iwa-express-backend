@@ -16,29 +16,61 @@ app.use(helmet({
 
 app.use(express.json({ limit: '1mb' }));
 
-const allowedOrigins = (process.env.FRONTEND_ALLOWED_ORIGINS || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+/**
+ * Origins
+ *
+ * Required Heroku config:
+ *
+ * CONNECT_PLUS_ALLOWED_ORIGINS=http://localhost:4200,https://partial.iwaconnectplus.org,https://www.iwaconnectplus.org,https://partial.iwaconnectplus.com,https://www.iwaconnectplus.com
+ */
+function parseOriginList(value) {
+  return String(value || '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
 
-app.use(cors({
+const connectPlusAllowedOrigins = parseOriginList(
+  process.env.CONNECT_PLUS_ALLOWED_ORIGINS
+);
+
+function cleanOrigin(origin) {
+  return String(origin || '').trim().replace(/\/+$/, '');
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return false;
+  }
+
+  return connectPlusAllowedOrigins.includes(cleanOrigin(origin));
+}
+
+/**
+ * CORS
+ */
+const corsOptions = {
   origin(origin, callback) {
     /**
-     * Keep this flexible for CORS preflight/health,
-     * but actual proxy endpoints are protected by isBrowserRequest().
+     * Allow no-origin requests for health/server-to-server.
+     * Browser proxy endpoints are still validated later.
      */
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
       return callback(null, true);
     }
 
-    return callback(new Error('Origin not allowed'));
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`Origin not allowed: ${origin}`));
   },
   credentials: true,
   allowedHeaders: [
     'Content-Type',
     'Authorization',
     'X-Proxy-Token',
-    'X-Event-Guest-Token',
+    'X-Project',
     'X-Request-Id',
     'X-Request-Timestamp',
     'X-Request-Signature',
@@ -46,72 +78,276 @@ app.use(cors({
     'Accept',
   ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-}));
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+/**
+ * CORS error handler.
+ */
+app.use((err, req, res, next) => {
+  if (err && err.message && err.message.includes('Origin not allowed')) {
+    const origin = req.headers.origin || '';
+
+    console.error('CORS blocked:', {
+      origin,
+      allowedOrigins: connectPlusAllowedOrigins,
+      method: req.method,
+      path: req.originalUrl,
+    });
+
+    return res.status(403).json({
+      error: 'Origin not allowed',
+      origin,
+      allowedOrigins: connectPlusAllowedOrigins,
+    });
+  }
+
+  return next(err);
+});
 
 const rateLimitStore = new Map();
 
 const BLOCKED_ROUTES = [
   { method: 'GET', path: '/event-admin/syncDB' },
+  { method: 'GET', path: '/membership/syncDB' },
 ];
 
-const USER_TOKEN_ROUTES = [
+/**
+ * Routes that must use the logged-in user's HLAuthToken.
+ * These routes must receive Authorization from browser and forward it unchanged.
+ */
+const CONNECT_PLUS_USER_TOKEN_ROUTES = [
+  // User / profile
   { method: 'GET', path: '/user/me' },
-  { method: 'POST', path: '/event-registration/generate-discount-code' },
-  { method: 'POST', path: '/event-registration/generate-discount-code-job-status' },
-  { method: 'POST', path: '/event-registration/badge-attendees' },
-  { method: 'POST', path: '/event-registration/update-attendee-checkin' },
+  { method: 'POST', path: '/contact/updateprivacy' },
+  { method: 'POST', path: '/contact/updatecontact' },
+  { method: 'GET', path: '/contact/get-contact/:id' },
+  { method: 'POST', path: '/contact/updateFMMember' },
+  { method: 'GET', path: '/contact/get-sugg-fm' },
+  { method: 'GET', path: '/contact/get-featured-by-week/:id' },
+  { method: 'POST', path: '/contact/get-contactSearch' },
+
+  // Search / people
+  { method: 'POST', path: '/search' },
+  { method: 'POST', path: '/search/suggest' },
+  { method: 'GET', path: '/people-search/token' },
+  { method: 'POST', path: '/people-search/query' },
+  { method: 'GET', path: '/people-search/accounts' },
+  { method: 'POST', path: '/people-search/account' },
+  { method: 'POST', path: '/people-search/accounts-by-country' },
+  { method: 'POST', path: '/people-search/next' },
+  { method: 'POST', path: '/people-search/report' },
+  { method: 'GET', path: '/people-search/getSearch' },
+
+  // Groups / communities
+  { method: 'GET', path: '/group/getMyGroups' },
+  { method: 'GET', path: '/group/getMyGroup/:id' },
+  { method: 'POST', path: '/group/getMyGroupsMembers' },
+  { method: 'POST', path: '/group/getMyGroupsAdminDetails' },
+  { method: 'POST', path: '/group/getMyGroupsSGAdminDetails' },
+  { method: 'POST', path: '/group/updateGroup' },
+
+  // Community meetings
+  { method: 'GET', path: '/community-meetings' },
+  { method: 'POST', path: '/community-meetings' },
+  { method: 'PUT', path: '/community-meetings/:id' },
+  { method: 'DELETE', path: '/community-meetings/:id' },
+
+  // Friends / pals
+  { method: 'GET', path: '/contact-palls/getMyPals' },
+  { method: 'POST', path: '/contact-palls/getSuggMembers' },
+  { method: 'GET', path: '/contact-palls/GetPendingReceivedFriendRequests' },
+  { method: 'GET', path: '/contact-palls/GetMyFriends' },
+  { method: 'POST', path: '/contact-palls' },
+  { method: 'PUT', path: '/contact-palls/:id' },
+  { method: 'DELETE', path: '/contact-palls/:id' },
+
+  // Posts
+  { method: 'POST', path: '/post/getPost' },
+  { method: 'GET', path: '/post/TopTags' },
+  { method: 'POST', path: '/post' },
+  { method: 'PUT', path: '/post/:id' },
+  { method: 'DELETE', path: '/post/:id' },
+  { method: 'POST', path: '/post/getPostLike' },
+  { method: 'POST', path: '/post/getLinkPreview' },
+  { method: 'POST', path: '/post/getComments' },
+  { method: 'POST', path: '/post-likes' },
+  { method: 'DELETE', path: '/post-likes/:id' },
+  { method: 'POST', path: '/post-comments' },
+  { method: 'PUT', path: '/post-comments/:id' },
+  { method: 'DELETE', path: '/post-comments/:id' },
+  { method: 'POST', path: '/post-pin/create-pin' },
+  { method: 'DELETE', path: '/post-pin/delete-pin/:id' },
+  { method: 'GET', path: '/post-pin/get-pin/:id' },
+
+  // Video stories
+  { method: 'POST', path: '/video-story' },
+  { method: 'POST', path: '/video-story/getVideoPost' },
+  { method: 'DELETE', path: '/video-story/:id' },
+  { method: 'POST', path: '/video-story/getComments' },
+  { method: 'POST', path: '/video-story-likes' },
+  { method: 'DELETE', path: '/video-story-likes/:id' },
+  { method: 'POST', path: '/video-story-comments' },
+  { method: 'PUT', path: '/video-story-comments/:id' },
+  { method: 'DELETE', path: '/video-story-comments/:id' },
+
+  // Polls
+  { method: 'POST', path: '/poll' },
+  { method: 'POST', path: '/poll/all' },
+  { method: 'POST', path: '/poll/create' },
+  { method: 'PUT', path: '/poll/:id' },
+  { method: 'DELETE', path: '/poll/:id' },
+  { method: 'POST', path: '/poll-votes' },
+
+  // Newsletter / notifications
+  { method: 'POST', path: '/c-newsletters' },
+  { method: 'POST', path: '/c-newsletters/sendTestmail' },
+  { method: 'POST', path: '/c-newsletters/get-notification' },
+  { method: 'POST', path: '/c-newsletters/find' },
+  { method: 'POST', path: '/c-newsletters/findAdmin' },
+  { method: 'POST', path: '/c-newsletters/findSub' },
+  { method: 'POST', path: '/c-newsletters/findOne' },
+  { method: 'POST', path: '/c-newsletters/SendMailOnMeeting' },
+  { method: 'POST', path: '/c-newsletters/SendMailOnMemberChange' },
+  { method: 'GET', path: '/c-newsletters/newsletter-metrics/:id' },
+  { method: 'GET', path: '/c-newsletters/emailletter-metrics/:id' },
+  { method: 'GET', path: '/get-mynotification/:id' },
+  { method: 'GET', path: '/update-mynotification/:id' },
+
+  // Content library
+  { method: 'POST', path: '/content-lib/get-autocomplete' },
+  { method: 'POST', path: '/content-lib/get-autocomplete-author' },
+  { method: 'POST', path: '/content-lib/get-autocomplete-tags' },
+  { method: 'POST', path: '/content-lib/generatePresignedUrl' },
+  { method: 'GET', path: '/content-lib/:id' },
+  { method: 'GET', path: '/content-lib/getDocumentBase/:id' },
+  { method: 'GET', path: '/content-lib/user-doc-rating/:id' },
+  { method: 'POST', path: '/content-lib/search' },
+  { method: 'POST', path: '/content-lib/get-types' },
+  { method: 'GET', path: '/content-lib/get-event-info' },
+
+  // Ratings
+  { method: 'GET', path: '/cl-rating/:id' },
+  { method: 'POST', path: '/cl-rating' },
+
+  // Bookmarks
+  { method: 'GET', path: '/cl-bookmark' },
+  { method: 'GET', path: '/cl-bookmark/:id' },
+  { method: 'POST', path: '/cl-bookmark' },
+  { method: 'DELETE', path: '/cl-bookmark/:id' },
+
+  // Blocks
+  { method: 'GET', path: '/cl-block-url/:id' },
+  { method: 'GET', path: '/cl-block-item/:id' },
+
+  // Activity log
+  { method: 'POST', path: '/activity-log/create' },
+  { method: 'POST', path: '/activity-log/create-join' },
+
+  // Community library / bookmarks
+  { method: 'GET', path: '/community-libraries' },
+  { method: 'POST', path: '/community-libraries' },
+  { method: 'PUT', path: '/community-libraries/:id' },
+  { method: 'DELETE', path: '/community-libraries/:id' },
+  { method: 'GET', path: '/post-bookmarks' },
+  { method: 'POST', path: '/post-bookmarks' },
+  { method: 'DELETE', path: '/post-bookmarks/:id' },
+
+  // Membership / renewal
+  { method: 'POST', path: '/renewal/get-subscription' },
+  { method: 'POST', path: '/renewal/get-one-subscription' },
+  { method: 'POST', path: '/renewal/get-orders' },
+  { method: 'POST', path: '/renewal/get-terms' },
+  { method: 'POST', path: '/renewal/get-renew-path' },
+  { method: 'POST', path: '/renewal/get-splan' },
+  { method: 'POST', path: '/renewal/get-journal' },
 ];
 
-const PROXY_TOKEN_ROUTES = [
+/**
+ * Routes that use short-lived proxy token and server-side CONNECT_PLUS_API_TOKEN.
+ */
+const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
+  // Common lookup routes
   { method: 'GET', path: '/contact/get-dialcode' },
-  { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
+  { method: 'GET', path: '/country' },
+  { method: 'GET', path: '/region' },
+  { method: 'POST', path: '/tags' },
+  { method: 'POST', path: '/authors' },
 
-  { method: 'POST', path: '/event-registration/ticket-types' },
+  // Event routes used inside Connect Plus / Join
+  { method: 'POST', path: '/event/validateEmail' },
+  { method: 'GET', path: '/event/getStateByCnty/:id' },
+  { method: 'GET', path: '/event/country' },
+  { method: 'GET', path: '/event/getEventCat' },
+  { method: 'POST', path: '/event/getEvent' },
+  { method: 'GET', path: '/event/GetMyWebinarRecordings/:id' },
   { method: 'POST', path: '/event-registration/states-by-country' },
-  { method: 'POST', path: '/event-registration/tickets' },
-  { method: 'POST', path: '/event-registration/price-rules' },
-  { method: 'POST', path: '/event-registration/check-discount-code' },
-  { method: 'POST', path: '/event-registration/check-gala-dinner' },
+  { method: 'GET', path: '/event/getEventGuestRegToken' },
 
-  { method: 'GET', path: '/event-attendee/get-all-events' },
-  { method: 'GET', path: '/event-attendee/get-basic-event-data/:key' },
-  { method: 'GET', path: '/event-attendee/get-venue-data/:key' },
-  { method: 'GET', path: '/event-attendee/get-country' },
-  { method: 'GET', path: '/event-attendee/get-guest-token' },
-  { method: 'GET', path: '/event-attendee/get-sub-event/:key' },
+  // Join / membership routes
+  { method: 'POST', path: '/membership/validateEmail' },
+  { method: 'POST', path: '/membership/insertUpdateMember' },
+  { method: 'POST', path: '/membership/getPrice' },
+  { method: 'GET', path: '/membership/getContactCol' },
+  { method: 'GET', path: '/membership/getDoc/:type/:id' },
+  { method: 'POST', path: '/membership/createMDiscountcode' },
 
-  { method: 'POST', path: '/event-registration/order-lines-by-email' },
-  { method: 'POST', path: '/event-registration/check-already-paid' },
-  { method: 'POST', path: '/event-registration/getUserByEmail' },
+  // Join / contact server-token routes
+  { method: 'POST', path: '/contact/validate-user-email' },
+  { method: 'POST', path: '/contact/create-member-sales-order' },
+  { method: 'POST', path: '/contact/get-account-by-id' },
+  { method: 'POST', path: '/contact/check-account-by-name' },
+  { method: 'POST', path: '/contact/get-journals' },
+  { method: 'POST', path: '/contact/get-sales-order-total' },
+  { method: 'POST', path: '/contact/get-sales-order-invoice' },
+  { method: 'POST', path: '/contact/get-membership-email-data' },
+  { method: 'POST', path: '/contact/get-discount-ticket-types' },
+  { method: 'GET', path: '/contact/get-source-codes' },
+  { method: 'POST', path: '/contact/get-pricing-rules-by-ticket-type' },
+  { method: 'POST', path: '/contact/get-price-rule-variables' },
+  { method: 'POST', path: '/contact/create-source-code' },
 
-  { method: 'POST', path: '/event-attendee/validate-email' },
-  { method: 'POST', path: '/event-attendee/send-email' },
-  { method: 'POST', path: '/event/activity-log' },
-  { method: 'POST', path: '/event-attendee/get-order-summary' },
-  { method: 'POST', path: '/event-attendee/update-form-data' },
-  { method: 'GET', path: '/event-attendee/get-form-data/:id' },
+  // Join / renewal server-token routes
+  { method: 'POST', path: '/renewal/get-renewal-contact-data' },
 
-  { method: 'POST', path: '/event-registration/sales-order' },
-  { method: 'POST', path: '/event-registration/sales-order-lines' },
-  { method: 'POST', path: '/event-registration/receipt' },
-  { method: 'POST', path: '/event-registration/draft-count' },
-  { method: 'POST', path: '/event-registration/delete-draft-order' },
-  { method: 'POST', path: '/event-registration/update-payment-method' },
-  { method: 'POST', path: '/event-registration/order-data' },
-  { method: 'POST', path: '/event-registration/add-to-waitlist' },
-  { method: 'POST', path: '/event-registration/create-sales-order-with-validation' },
-  { method: 'POST', path: '/event-registration/sales-order-payment-details' },
+  // Others
+  { method: 'POST', path: '/others/sendEmailOther' },
 
-  { method: 'POST', path: '/event-attendee/insert-attendee' },
-  { method: 'POST', path: '/event-attendee/insert-sub-event-attendee' },
-  { method: 'POST', path: '/event-attendee/insert-single-attendee' },
+  // Nomination
+  { method: 'GET', path: '/nomination/getAllNomination/:id' },
+  { method: 'POST', path: '/nomination/submit-form' },
+  { method: 'POST', path: '/nomination/submit-form-fd' },
+  { method: 'POST', path: '/nomination/submit-form-gm' },
+  { method: 'POST', path: '/nomination/checkContactExitForm' },
 
-  { method: 'POST', path: '/event-attendee/apply-discount-code' },
-  { method: 'POST', path: '/event-attendee/prepare-additional-ticket' },
-  { method: 'POST', path: '/event-attendee/get-attendee-by-sales-order-id' },
+  // Public CMS / content routes
+  { method: 'GET', path: '/dashboard' },
+  { method: 'GET', path: '/announcement' },
+  { method: 'GET', path: '/announcements' },
+  { method: 'GET', path: '/announcements/:id' },
+  { method: 'GET', path: '/featured-articles' },
+  { method: 'GET', path: '/faq-categories' },
+  { method: 'GET', path: '/news' },
+  { method: 'GET', path: '/news-feeds' },
+  { method: 'GET', path: '/news-categories' },
+  { method: 'GET', path: '/news-categories/:id' },
+  { method: 'GET', path: '/learns' },
+  { method: 'GET', path: '/learn-topics' },
+  { method: 'POST', path: '/learn-blog/getAll' },
+  { method: 'GET', path: '/learn-blog' },
+  { method: 'POST', path: '/learn-video/getAll' },
+  { method: 'GET', path: '/learn-video' },
+  { method: 'GET', path: '/learn-infographics' },
+  { method: 'GET', path: '/learn-courses' },
+  { method: 'POST', path: '/content-lib/get-documents' },
+  { method: 'GET', path: '/featured-publications' },
+  { method: 'GET', path: '/most-read-articles' },
+  { method: 'POST', path: '/featured-publications/most-read' },
+  { method: 'GET', path: '/featured-books' },
 ];
-
-const EVENT_GUEST_TOKEN_ROUTES = [];
 
 function getClientIp(req) {
   return (
@@ -149,8 +385,31 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
-function normalizePath(path) {
-  return path.split('?')[0].replace(/\/+$/, '') || '/';
+function normalizePath(value) {
+  if (!value) {
+    return '/';
+  }
+
+  let path = String(value).trim();
+
+  path = path.split('?')[0].split('#')[0];
+
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // Keep original path if malformed URI is received.
+  }
+
+  path = path.replace(/\\/g, '/');
+  path = path.replace(/\/{2,}/g, '/');
+
+  if (!path.startsWith('/')) {
+    path = `/${path}`;
+  }
+
+  path = path.replace(/\/+$/, '');
+
+  return path || '/';
 }
 
 function routeToRegex(routePath) {
@@ -180,8 +439,23 @@ function matchesRoute(routeList, method, path) {
   ));
 }
 
+function isConnectPlusRequest(req) {
+  const origin = cleanOrigin(req.headers.origin || '');
+  const projectHeader = String(req.headers['x-project'] || '').trim();
+
+  if (projectHeader && projectHeader !== 'connectPlus') {
+    return false;
+  }
+
+  if (!isAllowedOrigin(origin)) {
+    return false;
+  }
+
+  return true;
+}
+
 function createTokenBinding(req) {
-  const origin = req.headers.origin || '';
+  const origin = cleanOrigin(req.headers.origin || '');
   const userAgent = req.headers['user-agent'] || '';
 
   return crypto
@@ -190,20 +464,8 @@ function createTokenBinding(req) {
     .digest('hex');
 }
 
-function isAllowedOrigin(origin) {
-  return !!origin && allowedOrigins.includes(origin);
-}
-
-/**
- * Blocks normal Postman/curl/direct API calls.
- *
- * Important:
- * A determined attacker can still spoof browser headers.
- * This is not a replacement for token expiry, server-side auth,
- * route allowlisting, and permission checks.
- */
 function isBrowserRequest(req) {
-  const origin = req.headers.origin || '';
+  const origin = cleanOrigin(req.headers.origin || '');
   const referer = req.headers.referer || '';
   const secFetchSite = req.headers['sec-fetch-site'];
   const secFetchMode = req.headers['sec-fetch-mode'];
@@ -218,40 +480,37 @@ function isBrowserRequest(req) {
     return false;
   }
 
-  if (!referer || !referer.startsWith(`${origin}/`)) {
+  /**
+   * Do not force Referer.
+   * But if present, it must belong to the same origin.
+   */
+  if (referer && !referer.startsWith(`${origin}/`)) {
     return false;
   }
 
   /**
-   * Browser fetch/XHR sends Sec-Fetch-* headers.
-   * Postman/curl usually do not send these unless manually spoofed.
+   * Do not force Sec-Fetch headers.
+   * But if present, validate them.
    */
-  if (!secFetchSite || !secFetchMode || !secFetchDest) {
+  if (
+    secFetchSite &&
+    !['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)
+  ) {
     return false;
   }
 
-  if (!['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)) {
+  if (
+    secFetchMode &&
+    !['cors', 'same-origin'].includes(secFetchMode)
+  ) {
     return false;
   }
 
-  /**
-   * Angular HttpClient/fetch usually sends mode "cors".
-   */
-  if (!['cors', 'same-origin'].includes(secFetchMode)) {
+  if (secFetchDest && secFetchDest !== 'empty') {
     return false;
   }
 
-  /**
-   * XHR/fetch usually sends dest "empty".
-   */
-  if (secFetchDest !== 'empty') {
-    return false;
-  }
-
-  /**
-   * Basic block for common API clients.
-   */
-  if (/postman|curl|insomnia|httpie|wget|python-requests|axios/i.test(userAgent)) {
+  if (/postman|curl|insomnia|httpie|wget|python-requests/i.test(userAgent)) {
     return false;
   }
 
@@ -259,7 +518,7 @@ function isBrowserRequest(req) {
 }
 
 function isUnsafePath(targetPath) {
-  const cleanPath = targetPath.toLowerCase();
+  const cleanPath = normalizePath(targetPath).toLowerCase();
 
   return (
     cleanPath.includes('..') ||
@@ -273,49 +532,6 @@ function isUnsafePath(targetPath) {
     cleanPath.includes('/permissions') ||
     cleanPath.includes('/settings') ||
     cleanPath.includes('/config')
-  );
-}
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
-}
-
-function isSafeEventKey(eventKey) {
-  return /^[a-zA-Z0-9_-]{1,100}$/.test(String(eventKey || '').trim());
-}
-
-function getBodyEmail(req) {
-  return (
-    req.body?.email ||
-    req.body?.Email ||
-    req.body?.attendeeEmail ||
-    req.body?.AttendeeEmail ||
-    req.body?.primaryEmail ||
-    req.body?.PrimaryEmail ||
-    req.body?.Email_Address__c ||
-    req.body?.primaryContact?.email ||
-    req.body?.primaryContact?.Email ||
-    req.body?.data?.email ||
-    req.body?.data?.Email ||
-    req.query?.email ||
-    ''
-  );
-}
-
-function getBodyEventKey(req) {
-  return (
-    req.body?.eventKey ||
-    req.body?.EventKey ||
-    req.body?.key ||
-    req.body?.Key ||
-    req.body?.event_key ||
-    req.body?.EventApi__Event_Key__c ||
-    req.body?.event?.eventKey ||
-    req.body?.eventData?.eventKey ||
-    req.body?.data?.eventKey ||
-    req.query?.eventKey ||
-    req.query?.key ||
-    ''
   );
 }
 
@@ -341,8 +557,12 @@ function verifyProxyToken(req) {
       return { ok: false, status: 401, error: 'Invalid proxy token type' };
     }
 
-    if (decoded.origin !== (req.headers.origin || '')) {
+    if (cleanOrigin(decoded.origin) !== cleanOrigin(req.headers.origin || '')) {
       return { ok: false, status: 401, error: 'Proxy token origin mismatch' };
+    }
+
+    if (decoded.project !== 'connectPlus') {
+      return { ok: false, status: 401, error: 'Proxy token project mismatch' };
     }
 
     if (decoded.binding !== createTokenBinding(req)) {
@@ -355,103 +575,48 @@ function verifyProxyToken(req) {
   }
 }
 
-function createEventGuestToken({ eventKey, email, origin }) {
-  const secret = process.env.EVENT_GUEST_JWT_SECRET || process.env.PROXY_JWT_SECRET;
-  const expiresIn = Number(process.env.EVENT_GUEST_JWT_EXPIRES_SECONDS || 900);
-
-  if (!secret) {
-    throw new Error('Missing EVENT_GUEST_JWT_SECRET or PROXY_JWT_SECRET');
-  }
-
-  const token = jwt.sign(
-    {
-      type: 'event_guest',
-      eventKey: String(eventKey).trim(),
-      email: String(email).trim().toLowerCase(),
-      origin,
-    },
-    secret,
-    {
-      expiresIn,
-      issuer: 'iwa-connectplus',
-      audience: 'iwa-event-guest',
-    }
-  );
-
-  return {
-    token,
-    expiresIn,
-    expiresAt: Date.now() + expiresIn * 1000,
-  };
-}
-
-function verifyEventGuestToken(req, expectedData) {
-  const secret = process.env.EVENT_GUEST_JWT_SECRET || process.env.PROXY_JWT_SECRET;
-  const token = req.headers['x-event-guest-token'];
-
-  if (!secret) {
-    return { ok: false, status: 500, error: 'Missing EVENT_GUEST_JWT_SECRET or PROXY_JWT_SECRET' };
-  }
-
-  if (!token) {
-    return { ok: false, status: 401, error: 'Event guest token required' };
-  }
-
-  try {
-    const decoded = jwt.verify(token, secret, {
-      issuer: 'iwa-connectplus',
-      audience: 'iwa-event-guest',
-    });
-
-    if (decoded.type !== 'event_guest') {
-      return { ok: false, status: 401, error: 'Invalid event guest token type' };
-    }
-
-    if (decoded.origin !== (req.headers.origin || '')) {
-      return { ok: false, status: 401, error: 'Event guest token origin mismatch' };
-    }
-
-    if (decoded.eventKey !== String(expectedData.eventKey).trim()) {
-      return { ok: false, status: 403, error: 'Event guest token event mismatch' };
-    }
-
-    if (decoded.email !== String(expectedData.email).trim().toLowerCase()) {
-      return { ok: false, status: 403, error: 'Event guest token email mismatch' };
-    }
-
-    return { ok: true, decoded };
-  } catch {
-    return { ok: false, status: 401, error: 'Invalid or expired event guest token' };
-  }
-}
-
-function safeJoinUrl(baseUrl, targetPath) {
-  const base = baseUrl.replace(/\/+$/, '');
-  const path = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
-  return `${base}${path}`;
-}
-
-function getServerTokenForPath(cleanTargetPath) {
+function getConnectPlusServerToken(cleanTargetPath) {
   if (cleanTargetPath.toLowerCase().includes('webinar')) {
     return process.env.WEBINAR_API_TOKEN;
   }
 
-  return process.env.EVENT_API_TOKEN;
+  return process.env.CONNECT_PLUS_API_TOKEN;
+}
+
+function safeJoinUrl(baseUrl, targetPath) {
+  const base = String(baseUrl || '').replace(/\/+$/, '');
+  const path = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
+  return `${base}${path}`;
 }
 
 app.get('/health', (req, res) => {
-  return res.json({ ok: true, service: 'iwa-express-proxy' });
+  return res.json({
+    ok: true,
+    service: 'iwa-connectplus-express-proxy',
+    allowedOrigins: connectPlusAllowedOrigins,
+  });
 });
 
 app.get('/api/proxy-token', (req, res) => {
-  const origin = req.headers.origin || '';
+  const origin = cleanOrigin(req.headers.origin || '');
   const clientIp = getClientIp(req);
 
-  if (!isBrowserRequest(req)) {
-    return res.status(403).json({ error: 'Browser request required' });
+  if (!isConnectPlusRequest(req)) {
+    return res.status(403).json({
+      error: 'Connect Plus origin required',
+      origin,
+      allowedOrigins: connectPlusAllowedOrigins,
+    });
   }
 
-  if (isRateLimited(`proxy-token:${clientIp}:${origin}`, 10, 60 * 1000)) {
+  if (!isBrowserRequest(req)) {
+    return res.status(403).json({
+      error: 'Browser request required',
+      origin,
+    });
+  }
+
+  if (isRateLimited(`proxy-token:${clientIp}:${origin}`, 30, 60 * 1000)) {
     return res.status(429).json({ error: 'Too many proxy token requests' });
   }
 
@@ -465,6 +630,7 @@ app.get('/api/proxy-token', (req, res) => {
     {
       type: 'anonymous_proxy',
       origin,
+      project: 'connectPlus',
       binding: createTokenBinding(req),
     },
     process.env.PROXY_JWT_SECRET,
@@ -482,49 +648,24 @@ app.get('/api/proxy-token', (req, res) => {
   });
 });
 
-app.get('/api/event-guest-token', (req, res) => {
-  const origin = req.headers.origin || '';
-  const clientIp = getClientIp(req);
-
-  if (!isBrowserRequest(req)) {
-    return res.status(403).json({ error: 'Browser request required' });
-  }
-
-  if (isRateLimited(`event-guest-token:${clientIp}:${origin}`, 10, 60 * 1000)) {
-    return res.status(429).json({ error: 'Too many event guest token requests' });
-  }
-
-  const proxyCheck = verifyProxyToken(req);
-
-  if (!proxyCheck.ok) {
-    return res.status(proxyCheck.status).json({ error: proxyCheck.error });
-  }
-
-  const eventKey = String(req.query.eventKey || '').trim();
-  const email = String(req.query.email || '').trim().toLowerCase();
-
-  if (!isSafeEventKey(eventKey)) {
-    return res.status(400).json({ error: 'Invalid event key' });
-  }
-
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Invalid email' });
-  }
-
-  return res.json(createEventGuestToken({
-    eventKey,
-    email,
-    origin,
-  }));
-});
-
 app.all('/api/proxy/*', async (req, res) => {
   try {
-    const origin = req.headers.origin || '';
+    const origin = cleanOrigin(req.headers.origin || '');
     const clientIp = getClientIp(req);
 
+    if (!isConnectPlusRequest(req)) {
+      return res.status(403).json({
+        error: 'Connect Plus origin required',
+        origin,
+        allowedOrigins: connectPlusAllowedOrigins,
+      });
+    }
+
     if (!isBrowserRequest(req)) {
-      return res.status(403).json({ error: 'Browser request required' });
+      return res.status(403).json({
+        error: 'Browser request required',
+        origin,
+      });
     }
 
     const method = req.method.toUpperCase();
@@ -539,92 +680,83 @@ app.all('/api/proxy/*', async (req, res) => {
       return res.status(403).json({ error: 'Proxy route blocked' });
     }
 
-    const isUserTokenRoute = matchesRoute(USER_TOKEN_ROUTES, method, cleanTargetPath);
-    const isProxyTokenRoute = matchesRoute(PROXY_TOKEN_ROUTES, method, cleanTargetPath);
-    const isEventGuestTokenRoute = matchesRoute(EVENT_GUEST_TOKEN_ROUTES, method, cleanTargetPath);
+    const isUserTokenRoute = matchesRoute(
+      CONNECT_PLUS_USER_TOKEN_ROUTES,
+      method,
+      cleanTargetPath
+    );
 
-    if (!isUserTokenRoute && !isProxyTokenRoute && !isEventGuestTokenRoute) {
-      return res.status(403).json({ error: 'Proxy route not allowed' });
+    const isProxyTokenRoute = matchesRoute(
+      CONNECT_PLUS_PROXY_TOKEN_ROUTES,
+      method,
+      cleanTargetPath
+    );
+
+    if (!isUserTokenRoute && !isProxyTokenRoute) {
+      return res.status(403).json({
+        error: 'Proxy route not allowed for Connect Plus',
+        method,
+        path: cleanTargetPath,
+      });
     }
 
-    if (isRateLimited(`proxy:${clientIp}:${origin}`, 120, 60 * 1000)) {
+    if (isRateLimited(`proxy:${clientIp}:${origin}`, 300, 60 * 1000)) {
       return res.status(429).json({ error: 'Too many proxy requests' });
     }
 
     let authorizationHeader;
+    let authType;
 
+    /**
+     * User-token routes must keep the browser HLAuthToken.
+     * Do not replace it with CONNECT_PLUS_API_TOKEN.
+     */
     if (isUserTokenRoute) {
       const userAuth = req.headers.authorization;
 
       if (!userAuth || !userAuth.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'User token required' });
+        return res.status(401).json({
+          error: 'User token required',
+          path: cleanTargetPath,
+        });
       }
 
       authorizationHeader = userAuth;
+      authType = 'USER_TOKEN';
     }
 
-    if (isProxyTokenRoute) {
+    /**
+     * Proxy-token routes use the server-side API token.
+     * This only runs when the route is not a user-token route.
+     */
+    else if (isProxyTokenRoute) {
       const proxyCheck = verifyProxyToken(req);
 
       if (!proxyCheck.ok) {
         return res.status(proxyCheck.status).json({ error: proxyCheck.error });
       }
 
-      const serverToken = getServerTokenForPath(cleanTargetPath);
+      const serverToken = getConnectPlusServerToken(cleanTargetPath);
 
       if (!serverToken) {
-        return res.status(500).json({ error: 'Missing server API token' });
+        return res.status(500).json({
+          error: cleanTargetPath.toLowerCase().includes('webinar')
+            ? 'Missing WEBINAR_API_TOKEN'
+            : 'Missing CONNECT_PLUS_API_TOKEN',
+        });
       }
 
       authorizationHeader = `Bearer ${serverToken}`;
-    }
-
-    if (isEventGuestTokenRoute) {
-      const userAuth = req.headers.authorization;
-
-      if (userAuth && userAuth.startsWith('Bearer ')) {
-        authorizationHeader = userAuth;
-      } else {
-        const proxyCheck = verifyProxyToken(req);
-
-        if (!proxyCheck.ok) {
-          return res.status(proxyCheck.status).json({ error: proxyCheck.error });
-        }
-
-        const eventKey = getBodyEventKey(req);
-        const email = getBodyEmail(req);
-
-        if (!isSafeEventKey(eventKey)) {
-          return res.status(400).json({ error: 'Invalid or missing event key' });
-        }
-
-        if (!isValidEmail(email)) {
-          return res.status(400).json({ error: 'Invalid or missing email' });
-        }
-
-        const guestCheck = verifyEventGuestToken(req, {
-          eventKey,
-          email,
-        });
-
-        if (!guestCheck.ok) {
-          return res.status(guestCheck.status).json({ error: guestCheck.error });
-        }
-
-        const serverToken = getServerTokenForPath(cleanTargetPath);
-
-        if (!serverToken) {
-          return res.status(500).json({ error: 'Missing server API token' });
-        }
-
-        authorizationHeader = `Bearer ${serverToken}`;
-      }
+      authType = 'SERVER_TOKEN';
     }
 
     const requestBodyString = JSON.stringify(req.body || {});
     const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
 
-    if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
+    if (
+      !['GET', 'HEAD'].includes(method) &&
+      requestBodyString.length > maxBodyBytes
+    ) {
       return res.status(413).json({ error: 'Request body too large' });
     }
 
@@ -633,6 +765,16 @@ app.all('/api/proxy/*', async (req, res) => {
     }
 
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
+
+    console.log('Connect Plus forwarding:', {
+      method,
+      cleanTargetPath,
+      targetUrl,
+      isUserTokenRoute,
+      isProxyTokenRoute,
+      hasAuthorization: !!authorizationHeader,
+      authType,
+    });
 
     const controller = new AbortController();
     const timeoutMs = Number(process.env.PROXY_TIMEOUT_MS || 100000);
@@ -660,23 +802,66 @@ app.all('/api/proxy/*', async (req, res) => {
 
     res.status(response.status);
 
-    if (contentType.includes('application/json')) {
-      return res.json(responseText ? JSON.parse(responseText) : {});
+    /**
+     * Some Connect Plus routes may return non-JSON content.
+     */
+    if (cleanTargetPath === '/people-search/query') {
+      res.setHeader('Content-Type', contentType || 'text/plain');
+      return res.send(responseText);
     }
 
-    return res.status(502).json({ error: 'Proxy target did not return JSON' });
+    if (contentType.includes('application/json')) {
+      try {
+        return res.json(responseText ? JSON.parse(responseText) : {});
+      } catch {
+        return res.status(502).json({
+          error: 'Proxy target returned invalid JSON',
+          targetStatus: response.status,
+        });
+      }
+    }
+
+    console.error('Proxy target returned non-JSON:', {
+      targetUrl,
+      status: response.status,
+      contentType,
+      preview: responseText.slice(0, 300),
+    });
+
+    return res.status(502).json({
+      error: 'Proxy target did not return JSON',
+      targetStatus: response.status,
+      contentType,
+      preview: responseText.slice(0, 300),
+    });
   } catch (error) {
     if (error.name === 'AbortError') {
       return res.status(504).json({ error: 'Proxy request timed out' });
     }
 
-    console.error('Express proxy error:', error);
-    return res.status(500).json({ error: 'Failed to connect to target API' });
+    console.error('Connect Plus proxy error:', error);
+
+    return res.status(500).json({
+      error: 'Failed to connect to target API',
+      message: error.message,
+    });
   }
+});
+
+/**
+ * Final error handler.
+ */
+app.use((err, req, res, next) => {
+  console.error('Unhandled middleware error:', err);
+
+  return res.status(500).json({
+    error: 'Internal middleware error',
+    message: err.message,
+  });
 });
 
 const port = process.env.PORT || 5000;
 
 app.listen(port, () => {
-  console.log(`IWA Express proxy running on port ${port}`);
+  console.log(`IWA Connect Plus proxy running on port ${port}`);
 });
