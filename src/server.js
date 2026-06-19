@@ -351,8 +351,49 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
-function normalizePath(path) {
-  return path.split('?')[0].replace(/\/+$/, '') || '/';
+function normalizePath(value) {
+  if (!value) {
+    return '/';
+  }
+
+  let path = String(value).trim();
+
+  /**
+   * Remove query string and hash.
+   * Example:
+   * /group/getMyGroups?random=57462 => /group/getMyGroups
+   */
+  path = path.split('?')[0].split('#')[0];
+
+  /**
+   * Decode safely.
+   * Prevent crash if malformed URI is received.
+   */
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // keep original path if decoding fails
+  }
+
+  /**
+   * Normalize slashes.
+   */
+  path = path.replace(/\\/g, '/');
+  path = path.replace(/\/{2,}/g, '/');
+
+  /**
+   * Ensure path starts with /
+   */
+  if (!path.startsWith('/')) {
+    path = `/${path}`;
+  }
+
+  /**
+   * Remove trailing slash except root.
+   */
+  path = path.replace(/\/+$/, '');
+
+  return path || '/';
 }
 
 function routeToRegex(routePath) {
@@ -463,7 +504,7 @@ function isBrowserRequest(req) {
 }
 
 function isUnsafePath(targetPath) {
-  const cleanPath = targetPath.toLowerCase();
+  const cleanPath = normalizePath(targetPath).toLowerCase();
 
   return (
     cleanPath.includes('..') ||
