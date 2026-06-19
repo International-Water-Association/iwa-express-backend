@@ -874,7 +874,20 @@ app.use((err, req, res, next) => {
     message: err.message,
   });
 });
+app.use((req, res, next) => {
+  if (req.originalUrl.includes('/api/proxy/user/me')) {
+    console.log('EXPRESS HIT /api/proxy/user/me', {
+      method: req.method,
+      url: req.originalUrl,
+      origin: req.headers.origin,
+      hasAuthorization: !!req.headers.authorization,
+      hasCacheControl: !!req.headers['cache-control'],
+      hasXProject: !!req.headers['x-project'],
+    });
+  }
 
+  next();
+});
 const port = process.env.PORT || 5000;
 
 app.listen(port, () => {
