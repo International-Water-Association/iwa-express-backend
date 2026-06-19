@@ -10,67 +10,35 @@ const crypto = require('crypto');
 
 const app = express();
 
-app.disable('etag');
-
 app.use(helmet({
   contentSecurityPolicy: false,
 }));
 
 app.use(express.json({ limit: '1mb' }));
 
-/**
- * Origins
- *
- * Required Heroku config:
- *
- * CONNECT_PLUS_ALLOWED_ORIGINS=http://localhost:4200,https://partial.iwaconnectplus.org,https://www.iwaconnectplus.org,https://partial.iwaconnectplus.com,https://www.iwaconnectplus.com
- */
-function parseOriginList(value) {
-  return String(value || '')
-    .split(',')
-    .map((origin) => origin.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
-}
+const allowedOrigins = (process.env.FRONTEND_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-const connectPlusAllowedOrigins = parseOriginList(
-  process.env.CONNECT_PLUS_ALLOWED_ORIGINS
-);
-
-function cleanOrigin(origin) {
-  return String(origin || '').trim().replace(/\/+$/, '');
-}
-
-function isAllowedOrigin(origin) {
-  if (!origin) {
-    return false;
-  }
-
-  return connectPlusAllowedOrigins.includes(cleanOrigin(origin));
-}
-
-/**
- * CORS
- */
-const corsOptions = {
+app.use(cors({
   origin(origin, callback) {
-    if (!origin) {
+    /**
+     * Keep this flexible for CORS preflight/health,
+     * but actual proxy endpoints are protected by isBrowserRequest().
+     */
+    if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    if (isAllowedOrigin(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error(`Origin not allowed: ${origin}`));
+    return callback(new Error('Origin not allowed'));
   },
   credentials: true,
   allowedHeaders: [
     'Content-Type',
     'Authorization',
-    'Cache-Control',
-    'Pragma',
     'X-Proxy-Token',
-    'X-Project',
+    'X-Event-Guest-Token',
     'X-Request-Id',
     'X-Request-Timestamp',
     'X-Request-Signature',
@@ -78,49 +46,17 @@ const corsOptions = {
     'Accept',
   ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  optionsSuccessStatus: 204,
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-/**
- * CORS error handler.
- */
-app.use((err, req, res, next) => {
-  if (err && err.message && err.message.includes('Origin not allowed')) {
-    const origin = req.headers.origin || '';
-
-    console.error('CORS blocked:', {
-      origin,
-      allowedOrigins: connectPlusAllowedOrigins,
-      method: req.method,
-      path: req.originalUrl,
-    });
-
-    return res.status(403).json({
-      error: 'Origin not allowed',
-      origin,
-      allowedOrigins: connectPlusAllowedOrigins,
-    });
-  }
-
-  return next(err);
-});
+}));
 
 const rateLimitStore = new Map();
 
 const BLOCKED_ROUTES = [
-  { method: 'GET', path: '/event-admin/syncDB' },
+ { method: 'GET', path: '/event-admin/syncDB' },
   { method: 'GET', path: '/membership/syncDB' },
 ];
 
-/**
- * Routes that must use the logged-in user's HLAuthToken.
- */
-const CONNECT_PLUS_USER_TOKEN_ROUTES = [
-  // User / profile
-  { method: 'GET', path: '/user/me' },
+const USER_TOKEN_ROUTES = [
+   { method: 'GET', path: '/user/me' },
   { method: 'POST', path: '/contact/updateprivacy' },
   { method: 'POST', path: '/contact/updatecontact' },
   { method: 'GET', path: '/contact/get-contact/:id' },
@@ -266,10 +202,7 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/renewal/get-journal' },
 ];
 
-/**
- * Routes that use short-lived proxy token and server-side CONNECT_PLUS_API_TOKEN.
- */
-const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
+const PROXY_TOKEN_ROUTES = [
   // Common lookup routes
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'GET', path: '/country' },
@@ -348,6 +281,8 @@ const CONNECT_PLUS_PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/featured-publications/most-read' },
   { method: 'GET', path: '/featured-books' },
 ];
+
+const EVENT_GUEST_TOKEN_ROUTES = [];
 
 function getClientIp(req) {
   return (
@@ -439,23 +374,8 @@ function matchesRoute(routeList, method, path) {
   ));
 }
 
-function isConnectPlusRequest(req) {
-  const origin = cleanOrigin(req.headers.origin || '');
-  const projectHeader = String(req.headers['x-project'] || '').trim();
-
-  if (projectHeader && projectHeader !== 'connectPlus') {
-    return false;
-  }
-
-  if (!isAllowedOrigin(origin)) {
-    return false;
-  }
-
-  return true;
-}
-
 function createTokenBinding(req) {
-  const origin = cleanOrigin(req.headers.origin || '');
+  const origin = req.headers.origin || '';
   const userAgent = req.headers['user-agent'] || '';
 
   return crypto
@@ -464,8 +384,20 @@ function createTokenBinding(req) {
     .digest('hex');
 }
 
+function isAllowedOrigin(origin) {
+  return !!origin && allowedOrigins.includes(origin);
+}
+
+/**
+ * Blocks normal Postman/curl/direct API calls.
+ *
+ * Important:
+ * A determined attacker can still spoof browser headers.
+ * This is not a replacement for token expiry, server-side auth,
+ * route allowlisting, and permission checks.
+ */
 function isBrowserRequest(req) {
-  const origin = cleanOrigin(req.headers.origin || '');
+  const origin = req.headers.origin || '';
   const referer = req.headers.referer || '';
   const secFetchSite = req.headers['sec-fetch-site'];
   const secFetchMode = req.headers['sec-fetch-mode'];
@@ -480,29 +412,40 @@ function isBrowserRequest(req) {
     return false;
   }
 
-  if (referer && !referer.startsWith(`${origin}/`)) {
+  if (!referer || !referer.startsWith(`${origin}/`)) {
     return false;
   }
 
-  if (
-    secFetchSite &&
-    !['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)
-  ) {
+  /**
+   * Browser fetch/XHR sends Sec-Fetch-* headers.
+   * Postman/curl usually do not send these unless manually spoofed.
+   */
+  if (!secFetchSite || !secFetchMode || !secFetchDest) {
     return false;
   }
 
-  if (
-    secFetchMode &&
-    !['cors', 'same-origin'].includes(secFetchMode)
-  ) {
+  if (!['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)) {
     return false;
   }
 
-  if (secFetchDest && secFetchDest !== 'empty') {
+  /**
+   * Angular HttpClient/fetch usually sends mode "cors".
+   */
+  if (!['cors', 'same-origin'].includes(secFetchMode)) {
     return false;
   }
 
-  if (/postman|curl|insomnia|httpie|wget|python-requests/i.test(userAgent)) {
+  /**
+   * XHR/fetch usually sends dest "empty".
+   */
+  if (secFetchDest !== 'empty') {
+    return false;
+  }
+
+  /**
+   * Basic block for common API clients.
+   */
+  if (/postman|curl|insomnia|httpie|wget|python-requests|axios/i.test(userAgent)) {
     return false;
   }
 
@@ -510,7 +453,7 @@ function isBrowserRequest(req) {
 }
 
 function isUnsafePath(targetPath) {
-  const cleanPath = normalizePath(targetPath).toLowerCase();
+  const cleanPath = targetPath.toLowerCase();
 
   return (
     cleanPath.includes('..') ||
@@ -524,6 +467,49 @@ function isUnsafePath(targetPath) {
     cleanPath.includes('/permissions') ||
     cleanPath.includes('/settings') ||
     cleanPath.includes('/config')
+  );
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
+function isSafeEventKey(eventKey) {
+  return /^[a-zA-Z0-9_-]{1,100}$/.test(String(eventKey || '').trim());
+}
+
+function getBodyEmail(req) {
+  return (
+    req.body?.email ||
+    req.body?.Email ||
+    req.body?.attendeeEmail ||
+    req.body?.AttendeeEmail ||
+    req.body?.primaryEmail ||
+    req.body?.PrimaryEmail ||
+    req.body?.Email_Address__c ||
+    req.body?.primaryContact?.email ||
+    req.body?.primaryContact?.Email ||
+    req.body?.data?.email ||
+    req.body?.data?.Email ||
+    req.query?.email ||
+    ''
+  );
+}
+
+function getBodyEventKey(req) {
+  return (
+    req.body?.eventKey ||
+    req.body?.EventKey ||
+    req.body?.key ||
+    req.body?.Key ||
+    req.body?.event_key ||
+    req.body?.EventApi__Event_Key__c ||
+    req.body?.event?.eventKey ||
+    req.body?.eventData?.eventKey ||
+    req.body?.data?.eventKey ||
+    req.query?.eventKey ||
+    req.query?.key ||
+    ''
   );
 }
 
@@ -549,12 +535,8 @@ function verifyProxyToken(req) {
       return { ok: false, status: 401, error: 'Invalid proxy token type' };
     }
 
-    if (cleanOrigin(decoded.origin) !== cleanOrigin(req.headers.origin || '')) {
+    if (decoded.origin !== (req.headers.origin || '')) {
       return { ok: false, status: 401, error: 'Proxy token origin mismatch' };
-    }
-
-    if (decoded.project !== 'connectPlus') {
-      return { ok: false, status: 401, error: 'Proxy token project mismatch' };
     }
 
     if (decoded.binding !== createTokenBinding(req)) {
@@ -567,67 +549,103 @@ function verifyProxyToken(req) {
   }
 }
 
-function getConnectPlusServerToken(cleanTargetPath) {
-  if (cleanTargetPath.toLowerCase().includes('webinar')) {
-    return process.env.WEBINAR_API_TOKEN;
+function createEventGuestToken({ eventKey, email, origin }) {
+  const secret = process.env.EVENT_GUEST_JWT_SECRET || process.env.PROXY_JWT_SECRET;
+  const expiresIn = Number(process.env.EVENT_GUEST_JWT_EXPIRES_SECONDS || 900);
+
+  if (!secret) {
+    throw new Error('Missing EVENT_GUEST_JWT_SECRET or PROXY_JWT_SECRET');
   }
 
-  return process.env.CONNECT_PLUS_API_TOKEN;
+  const token = jwt.sign(
+    {
+      type: 'event_guest',
+      eventKey: String(eventKey).trim(),
+      email: String(email).trim().toLowerCase(),
+      origin,
+    },
+    secret,
+    {
+      expiresIn,
+      issuer: 'iwa-connectplus',
+      audience: 'iwa-event-guest',
+    }
+  );
+
+  return {
+    token,
+    expiresIn,
+    expiresAt: Date.now() + expiresIn * 1000,
+  };
+}
+
+function verifyEventGuestToken(req, expectedData) {
+  const secret = process.env.EVENT_GUEST_JWT_SECRET || process.env.PROXY_JWT_SECRET;
+  const token = req.headers['x-event-guest-token'];
+
+  if (!secret) {
+    return { ok: false, status: 500, error: 'Missing EVENT_GUEST_JWT_SECRET or PROXY_JWT_SECRET' };
+  }
+
+  if (!token) {
+    return { ok: false, status: 401, error: 'Event guest token required' };
+  }
+
+  try {
+    const decoded = jwt.verify(token, secret, {
+      issuer: 'iwa-connectplus',
+      audience: 'iwa-event-guest',
+    });
+
+    if (decoded.type !== 'event_guest') {
+      return { ok: false, status: 401, error: 'Invalid event guest token type' };
+    }
+
+    if (decoded.origin !== (req.headers.origin || '')) {
+      return { ok: false, status: 401, error: 'Event guest token origin mismatch' };
+    }
+
+    if (decoded.eventKey !== String(expectedData.eventKey).trim()) {
+      return { ok: false, status: 403, error: 'Event guest token event mismatch' };
+    }
+
+    if (decoded.email !== String(expectedData.email).trim().toLowerCase()) {
+      return { ok: false, status: 403, error: 'Event guest token email mismatch' };
+    }
+
+    return { ok: true, decoded };
+  } catch {
+    return { ok: false, status: 401, error: 'Invalid or expired event guest token' };
+  }
 }
 
 function safeJoinUrl(baseUrl, targetPath) {
-  const base = String(baseUrl || '').replace(/\/+$/, '');
+  const base = baseUrl.replace(/\/+$/, '');
   const path = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
   return `${base}${path}`;
 }
 
-function decodeJwtPayloadFromAuthorization(authorizationHeader) {
-  try {
-    if (!authorizationHeader || !authorizationHeader.startsWith('Bearer ')) {
-      return null;
-    }
-
-    const tokenOnly = authorizationHeader.replace('Bearer ', '').trim();
-    const payloadBase64 = tokenOnly.split('.')[1];
-
-    if (!payloadBase64) {
-      return null;
-    }
-
-    return JSON.parse(Buffer.from(payloadBase64, 'base64').toString('utf8'));
-  } catch {
-    return null;
+function getServerTokenForPath(cleanTargetPath) {
+  if (cleanTargetPath.toLowerCase().includes('webinar')) {
+    return process.env.WEBINAR_API_TOKEN;
   }
+
+  return process.env.EVENT_API_TOKEN;
 }
 
 app.get('/health', (req, res) => {
-  return res.json({
-    ok: true,
-    service: 'iwa-connectplus-express-proxy',
-    allowedOrigins: connectPlusAllowedOrigins,
-  });
+  return res.json({ ok: true, service: 'iwa-express-proxy' });
 });
 
 app.get('/api/proxy-token', (req, res) => {
-  const origin = cleanOrigin(req.headers.origin || '');
+  const origin = req.headers.origin || '';
   const clientIp = getClientIp(req);
 
-  if (!isConnectPlusRequest(req)) {
-    return res.status(403).json({
-      error: 'Connect Plus origin required',
-      origin,
-      allowedOrigins: connectPlusAllowedOrigins,
-    });
-  }
-
   if (!isBrowserRequest(req)) {
-    return res.status(403).json({
-      error: 'Browser request required',
-      origin,
-    });
+    return res.status(403).json({ error: 'Browser request required' });
   }
 
-  if (isRateLimited(`proxy-token:${clientIp}:${origin}`, 30, 60 * 1000)) {
+  if (isRateLimited(`proxy-token:${clientIp}:${origin}`, 10, 60 * 1000)) {
     return res.status(429).json({ error: 'Too many proxy token requests' });
   }
 
@@ -641,7 +659,6 @@ app.get('/api/proxy-token', (req, res) => {
     {
       type: 'anonymous_proxy',
       origin,
-      project: 'connectPlus',
       binding: createTokenBinding(req),
     },
     process.env.PROXY_JWT_SECRET,
@@ -659,35 +676,54 @@ app.get('/api/proxy-token', (req, res) => {
   });
 });
 
+app.get('/api/event-guest-token', (req, res) => {
+  const origin = req.headers.origin || '';
+  const clientIp = getClientIp(req);
+
+  if (!isBrowserRequest(req)) {
+    return res.status(403).json({ error: 'Browser request required' });
+  }
+
+  if (isRateLimited(`event-guest-token:${clientIp}:${origin}`, 10, 60 * 1000)) {
+    return res.status(429).json({ error: 'Too many event guest token requests' });
+  }
+
+  const proxyCheck = verifyProxyToken(req);
+
+  if (!proxyCheck.ok) {
+    return res.status(proxyCheck.status).json({ error: proxyCheck.error });
+  }
+
+  const eventKey = String(req.query.eventKey || '').trim();
+  const email = String(req.query.email || '').trim().toLowerCase();
+
+  if (!isSafeEventKey(eventKey)) {
+    return res.status(400).json({ error: 'Invalid event key' });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+
+  return res.json(createEventGuestToken({
+    eventKey,
+    email,
+    origin,
+  }));
+});
+
 app.all('/api/proxy/*', async (req, res) => {
   try {
-    const origin = cleanOrigin(req.headers.origin || '');
+    const origin = req.headers.origin || '';
     const clientIp = getClientIp(req);
 
-    if (!isConnectPlusRequest(req)) {
-      return res.status(403).json({
-        error: 'Connect Plus origin required',
-        origin,
-        allowedOrigins: connectPlusAllowedOrigins,
-      });
-    }
-
     if (!isBrowserRequest(req)) {
-      return res.status(403).json({
-        error: 'Browser request required',
-        origin,
-      });
+      return res.status(403).json({ error: 'Browser request required' });
     }
 
     const method = req.method.toUpperCase();
     const targetPath = req.originalUrl.replace('/api/proxy', '') || '/';
     const cleanTargetPath = normalizePath(targetPath);
-
-    if (cleanTargetPath === '/user/me') {
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-    }
 
     if (isUnsafePath(cleanTargetPath)) {
       return res.status(400).json({ error: 'Invalid or unsafe proxy path' });
@@ -697,73 +733,92 @@ app.all('/api/proxy/*', async (req, res) => {
       return res.status(403).json({ error: 'Proxy route blocked' });
     }
 
-    const isUserTokenRoute = matchesRoute(
-      CONNECT_PLUS_USER_TOKEN_ROUTES,
-      method,
-      cleanTargetPath
-    );
+    const isUserTokenRoute = matchesRoute(USER_TOKEN_ROUTES, method, cleanTargetPath);
+    const isProxyTokenRoute = matchesRoute(PROXY_TOKEN_ROUTES, method, cleanTargetPath);
+    const isEventGuestTokenRoute = matchesRoute(EVENT_GUEST_TOKEN_ROUTES, method, cleanTargetPath);
 
-    const isProxyTokenRoute = matchesRoute(
-      CONNECT_PLUS_PROXY_TOKEN_ROUTES,
-      method,
-      cleanTargetPath
-    );
-
-    if (!isUserTokenRoute && !isProxyTokenRoute) {
-      return res.status(403).json({
-        error: 'Proxy route not allowed for Connect Plus',
-        method,
-        path: cleanTargetPath,
-      });
+    if (!isUserTokenRoute && !isProxyTokenRoute && !isEventGuestTokenRoute) {
+      return res.status(403).json({ error: 'Proxy route not allowed' });
     }
 
-    if (isRateLimited(`proxy:${clientIp}:${origin}`, 300, 60 * 1000)) {
+    if (isRateLimited(`proxy:${clientIp}:${origin}`, 120, 60 * 1000)) {
       return res.status(429).json({ error: 'Too many proxy requests' });
     }
 
     let authorizationHeader;
-    let authType;
 
     if (isUserTokenRoute) {
       const userAuth = req.headers.authorization;
 
       if (!userAuth || !userAuth.startsWith('Bearer ')) {
-        return res.status(401).json({
-          error: 'User token required',
-          path: cleanTargetPath,
-        });
+        return res.status(401).json({ error: 'User token required' });
       }
 
       authorizationHeader = userAuth;
-      authType = 'USER_TOKEN';
-    } else if (isProxyTokenRoute) {
+    }
+
+    if (isProxyTokenRoute) {
       const proxyCheck = verifyProxyToken(req);
 
       if (!proxyCheck.ok) {
         return res.status(proxyCheck.status).json({ error: proxyCheck.error });
       }
 
-      const serverToken = getConnectPlusServerToken(cleanTargetPath);
+      const serverToken = getServerTokenForPath(cleanTargetPath);
 
       if (!serverToken) {
-        return res.status(500).json({
-          error: cleanTargetPath.toLowerCase().includes('webinar')
-            ? 'Missing WEBINAR_API_TOKEN'
-            : 'Missing CONNECT_PLUS_API_TOKEN',
-        });
+        return res.status(500).json({ error: 'Missing server API token' });
       }
 
       authorizationHeader = `Bearer ${serverToken}`;
-      authType = 'SERVER_TOKEN';
+    }
+
+    if (isEventGuestTokenRoute) {
+      const userAuth = req.headers.authorization;
+
+      if (userAuth && userAuth.startsWith('Bearer ')) {
+        authorizationHeader = userAuth;
+      } else {
+        const proxyCheck = verifyProxyToken(req);
+
+        if (!proxyCheck.ok) {
+          return res.status(proxyCheck.status).json({ error: proxyCheck.error });
+        }
+
+        const eventKey = getBodyEventKey(req);
+        const email = getBodyEmail(req);
+
+        if (!isSafeEventKey(eventKey)) {
+          return res.status(400).json({ error: 'Invalid or missing event key' });
+        }
+
+        if (!isValidEmail(email)) {
+          return res.status(400).json({ error: 'Invalid or missing email' });
+        }
+
+        const guestCheck = verifyEventGuestToken(req, {
+          eventKey,
+          email,
+        });
+
+        if (!guestCheck.ok) {
+          return res.status(guestCheck.status).json({ error: guestCheck.error });
+        }
+
+        const serverToken = getServerTokenForPath(cleanTargetPath);
+
+        if (!serverToken) {
+          return res.status(500).json({ error: 'Missing server API token' });
+        }
+
+        authorizationHeader = `Bearer ${serverToken}`;
+      }
     }
 
     const requestBodyString = JSON.stringify(req.body || {});
     const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
 
-    if (
-      !['GET', 'HEAD'].includes(method) &&
-      requestBodyString.length > maxBodyBytes
-    ) {
+    if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
       return res.status(413).json({ error: 'Request body too large' });
     }
 
@@ -773,22 +828,6 @@ app.all('/api/proxy/*', async (req, res) => {
 
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
 
-    const decodedUserPayload = authType === 'USER_TOKEN'
-      ? decodeJwtPayloadFromAuthorization(authorizationHeader)
-      : null;
-
-    console.log('Connect Plus forwarding:', {
-      method,
-      cleanTargetPath,
-      targetUrl,
-      isUserTokenRoute,
-      isProxyTokenRoute,
-      hasAuthorization: !!authorizationHeader,
-      authType,
-      contactIdFromToken: decodedUserPayload?.id || null,
-      tokenType: decodedUserPayload?.type || null,
-    });
-
     const controller = new AbortController();
     const timeoutMs = Number(process.env.PROXY_TIMEOUT_MS || 100000);
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -796,24 +835,13 @@ app.all('/api/proxy/*', async (req, res) => {
     let response;
 
     try {
-      const targetHeaders = {
-        Authorization: authorizationHeader,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      };
-
-      if (cleanTargetPath === '/user/me') {
-        console.log('USER ME TOKEN DEBUG:', {
-          contactIdFromToken: decodedUserPayload?.id || null,
-          type: decodedUserPayload?.type || null,
-          hasExp: !!decodedUserPayload?.exp,
-          targetUrl,
-        });
-      }
-
       response = await fetch(targetUrl, {
         method,
-        headers: targetHeaders,
+        headers: {
+          Authorization: authorizationHeader,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
         body: ['GET', 'HEAD'].includes(method) ? undefined : requestBodyString,
         signal: controller.signal,
       });
@@ -824,70 +852,25 @@ app.all('/api/proxy/*', async (req, res) => {
     const contentType = response.headers.get('content-type') || '';
     const responseText = await response.text();
 
-    if (cleanTargetPath === '/user/me') {
-      console.log('USER ME TARGET RESPONSE:', {
-        status: response.status,
-        contentType,
-        responseText,
-      });
-    }
-
     res.status(response.status);
 
-    if (cleanTargetPath === '/people-search/query') {
-      res.setHeader('Content-Type', contentType || 'text/plain');
-      return res.send(responseText);
-    }
-
     if (contentType.includes('application/json')) {
-      try {
-        return res.json(responseText ? JSON.parse(responseText) : {});
-      } catch {
-        return res.status(502).json({
-          error: 'Proxy target returned invalid JSON',
-          targetStatus: response.status,
-        });
-      }
+      return res.json(responseText ? JSON.parse(responseText) : {});
     }
 
-    console.error('Proxy target returned non-JSON:', {
-      targetUrl,
-      status: response.status,
-      contentType,
-      preview: responseText.slice(0, 300),
-    });
-
-    return res.status(502).json({
-      error: 'Proxy target did not return JSON',
-      targetStatus: response.status,
-      contentType,
-      preview: responseText.slice(0, 300),
-    });
+    return res.status(502).json({ error: 'Proxy target did not return JSON' });
   } catch (error) {
     if (error.name === 'AbortError') {
       return res.status(504).json({ error: 'Proxy request timed out' });
     }
 
-    console.error('Connect Plus proxy error:', error);
-
-    return res.status(500).json({
-      error: 'Failed to connect to target API',
-      message: error.message,
-    });
+    console.error('Express proxy error:', error);
+    return res.status(500).json({ error: 'Failed to connect to target API' });
   }
-});
-
-app.use((err, req, res, next) => {
-  console.error('Unhandled middleware error:', err);
-
-  return res.status(500).json({
-    error: 'Internal middleware error',
-    message: err.message,
-  });
 });
 
 const port = process.env.PORT || 5000;
 
 app.listen(port, () => {
-  console.log(`IWA Connect Plus proxy running on port ${port}`);
+  console.log(`IWA Express proxy running on port ${port}`);
 });
