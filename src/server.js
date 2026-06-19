@@ -10,6 +10,8 @@ const crypto = require('crypto');
 
 const app = express();
 
+app.disable('etag');
+
 app.use(helmet({
   contentSecurityPolicy: false,
 }));
@@ -51,10 +53,6 @@ function isAllowedOrigin(origin) {
  */
 const corsOptions = {
   origin(origin, callback) {
-    /**
-     * Allow no-origin requests for health/server-to-server.
-     * Browser proxy endpoints are still validated later.
-     */
     if (!origin) {
       return callback(null, true);
     }
@@ -69,6 +67,8 @@ const corsOptions = {
   allowedHeaders: [
     'Content-Type',
     'Authorization',
+    'Cache-Control',
+    'Pragma',
     'X-Proxy-Token',
     'X-Project',
     'X-Request-Id',
@@ -86,7 +86,6 @@ app.options('*', cors(corsOptions));
 
 /**
  * CORS error handler.
- * Keeps blocked-origin errors readable instead of browser showing only generic CORS failure.
  */
 app.use((err, req, res, next) => {
   if (err && err.message && err.message.includes('Origin not allowed')) {
@@ -118,7 +117,6 @@ const BLOCKED_ROUTES = [
 
 /**
  * Routes that must use the logged-in user's HLAuthToken.
- * These routes must receive Authorization from browser and forward it unchanged.
  */
 const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   // User / profile
@@ -142,6 +140,7 @@ const CONNECT_PLUS_USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/people-search/next' },
   { method: 'POST', path: '/people-search/report' },
   { method: 'GET', path: '/people-search/getSearch' },
+  { method: 'POST', path: '/people-search/getSearch' },
 
   // Groups / communities
   { method: 'GET', path: '/group/getMyGroups' },
@@ -481,18 +480,10 @@ function isBrowserRequest(req) {
     return false;
   }
 
-  /**
-   * Do not force Referer.
-   * But if present, it must belong to the same origin.
-   */
   if (referer && !referer.startsWith(`${origin}/`)) {
     return false;
   }
 
-  /**
-   * Do not force Sec-Fetch headers.
-   * But if present, validate them.
-   */
   if (
     secFetchSite &&
     !['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)
@@ -590,6 +581,25 @@ function safeJoinUrl(baseUrl, targetPath) {
   return `${base}${path}`;
 }
 
+function decodeJwtPayloadFromAuthorization(authorizationHeader) {
+  try {
+    if (!authorizationHeader || !authorizationHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    const tokenOnly = authorizationHeader.replace('Bearer ', '').trim();
+    const payloadBase64 = tokenOnly.split('.')[1];
+
+    if (!payloadBase64) {
+      return null;
+    }
+
+    return JSON.parse(Buffer.from(payloadBase64, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
 app.get('/health', (req, res) => {
   return res.json({
     ok: true,
@@ -673,6 +683,12 @@ app.all('/api/proxy/*', async (req, res) => {
     const targetPath = req.originalUrl.replace('/api/proxy', '') || '/';
     const cleanTargetPath = normalizePath(targetPath);
 
+    if (cleanTargetPath === '/user/me') {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+
     if (isUnsafePath(cleanTargetPath)) {
       return res.status(400).json({ error: 'Invalid or unsafe proxy path' });
     }
@@ -706,6 +722,7 @@ app.all('/api/proxy/*', async (req, res) => {
     }
 
     let authorizationHeader;
+    let authType;
 
     if (isUserTokenRoute) {
       const userAuth = req.headers.authorization;
@@ -717,13 +734,9 @@ app.all('/api/proxy/*', async (req, res) => {
         });
       }
 
-      /**
-       * For logged-in Connect Plus routes, forward user's HLAuthToken.
-       */
       authorizationHeader = userAuth;
-    }
-
-    if (isProxyTokenRoute) {
+      authType = 'USER_TOKEN';
+    } else if (isProxyTokenRoute) {
       const proxyCheck = verifyProxyToken(req);
 
       if (!proxyCheck.ok) {
@@ -740,10 +753,8 @@ app.all('/api/proxy/*', async (req, res) => {
         });
       }
 
-      /**
-       * Only public/server-token routes use CONNECT_PLUS_API_TOKEN.
-       */
       authorizationHeader = `Bearer ${serverToken}`;
+      authType = 'SERVER_TOKEN';
     }
 
     const requestBodyString = JSON.stringify(req.body || {});
@@ -762,6 +773,10 @@ app.all('/api/proxy/*', async (req, res) => {
 
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
 
+    const decodedUserPayload = authType === 'USER_TOKEN'
+      ? decodeJwtPayloadFromAuthorization(authorizationHeader)
+      : null;
+
     console.log('Connect Plus forwarding:', {
       method,
       cleanTargetPath,
@@ -769,7 +784,9 @@ app.all('/api/proxy/*', async (req, res) => {
       isUserTokenRoute,
       isProxyTokenRoute,
       hasAuthorization: !!authorizationHeader,
-      authType: isUserTokenRoute ? 'USER_TOKEN' : 'SERVER_TOKEN',
+      authType,
+      contactIdFromToken: decodedUserPayload?.id || null,
+      tokenType: decodedUserPayload?.type || null,
     });
 
     const controller = new AbortController();
@@ -779,13 +796,24 @@ app.all('/api/proxy/*', async (req, res) => {
     let response;
 
     try {
+      const targetHeaders = {
+        Authorization: authorizationHeader,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      };
+
+      if (cleanTargetPath === '/user/me') {
+        console.log('USER ME TOKEN DEBUG:', {
+          contactIdFromToken: decodedUserPayload?.id || null,
+          type: decodedUserPayload?.type || null,
+          hasExp: !!decodedUserPayload?.exp,
+          targetUrl,
+        });
+      }
+
       response = await fetch(targetUrl, {
         method,
-        headers: {
-          Authorization: authorizationHeader,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: targetHeaders,
         body: ['GET', 'HEAD'].includes(method) ? undefined : requestBodyString,
         signal: controller.signal,
       });
@@ -796,12 +824,16 @@ app.all('/api/proxy/*', async (req, res) => {
     const contentType = response.headers.get('content-type') || '';
     const responseText = await response.text();
 
+    if (cleanTargetPath === '/user/me') {
+      console.log('USER ME TARGET RESPONSE:', {
+        status: response.status,
+        contentType,
+        responseText,
+      });
+    }
+
     res.status(response.status);
 
-    /**
-     * Some Connect Plus routes may return non-JSON content.
-     * Do not block /people-search/query only because of content-type.
-     */
     if (cleanTargetPath === '/people-search/query') {
       res.setHeader('Content-Type', contentType || 'text/plain');
       return res.send(responseText);
@@ -845,9 +877,6 @@ app.all('/api/proxy/*', async (req, res) => {
   }
 });
 
-/**
- * Final error handler.
- */
 app.use((err, req, res, next) => {
   console.error('Unhandled middleware error:', err);
 
