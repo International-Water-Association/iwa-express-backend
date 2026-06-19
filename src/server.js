@@ -690,14 +690,48 @@ app.all('/api/proxy/*', async (req, res) => {
 
     let authorizationHeader;
 
+    let authorizationHeader;
+
     if (isUserTokenRoute) {
       const userAuth = req.headers.authorization;
 
       if (!userAuth || !userAuth.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'User token required' });
+        return res.status(401).json({
+          error: 'User token required',
+          path: cleanTargetPath
+        });
       }
 
+      /**
+       * IMPORTANT:
+       * For logged-in Connect Plus routes, forward the user's HLAuthToken.
+       * Do not replace it with CONNECT_PLUS_API_TOKEN.
+       * This allows Strapi/backend to populate ctx.state.user properly.
+       */
       authorizationHeader = userAuth;
+    }
+
+    if (isProxyTokenRoute) {
+      const proxyCheck = verifyProxyToken(req);
+
+      if (!proxyCheck.ok) {
+        return res.status(proxyCheck.status).json({ error: proxyCheck.error });
+      }
+
+      const serverToken = getConnectPlusServerToken(cleanTargetPath);
+
+      if (!serverToken) {
+        return res.status(500).json({
+          error: cleanTargetPath.toLowerCase().includes('webinar')
+            ? 'Missing WEBINAR_API_TOKEN'
+            : 'Missing CONNECT_PLUS_API_TOKEN',
+        });
+      }
+
+      /**
+       * Only public/server-token routes use CONNECT_PLUS_API_TOKEN.
+       */
+      authorizationHeader = `Bearer ${serverToken}`;
     }
 
     if (isProxyTokenRoute) {
