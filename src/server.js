@@ -103,8 +103,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-registration/states-by-country' },
 
   // Salesforce Apex REST
-  { method: 'POST', path: '/services/apexrest/update-salesorder-payment' },
-];
+ { method: 'POST', path: '/contact/update-payment-salesorder' },];
 const EVENT_GUEST_TOKEN_ROUTES=[];
 
 
