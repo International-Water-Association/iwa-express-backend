@@ -76,6 +76,7 @@ const corsOptions = {
     'X-Request-Signature',
     'Origin',
     'Accept',
+    'X-HL-Authorization',
   ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   optionsSuccessStatus: 204,
@@ -783,13 +784,27 @@ app.all('/api/proxy/*', async (req, res) => {
     let response;
 
     try {
+      const targetHeaders = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      };
+
+      /**
+       * Special case:
+       * /user/me uses HLAuthToken where payload.id is Salesforce Contact sfid.
+       * If we send it as Authorization, Strapi users-permissions tries:
+       * up_users.id = "003WS00000f62QxYAI"
+       * and controller logs never print.
+       */
+      if (cleanTargetPath === '/user/me') {
+        targetHeaders['X-HL-Authorization'] = authorizationHeader;
+      } else {
+        targetHeaders.Authorization = authorizationHeader;
+      }
+
       response = await fetch(targetUrl, {
         method,
-        headers: {
-          Authorization: authorizationHeader,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: targetHeaders,
         body: ['GET', 'HEAD'].includes(method) ? undefined : requestBodyString,
         signal: controller.signal,
       });
