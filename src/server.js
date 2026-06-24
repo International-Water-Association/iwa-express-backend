@@ -7,6 +7,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const path = require('path');
 
 const app = express();
 
@@ -90,6 +91,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-attendee/get-order-summary' },
   { method: 'POST', path: '/event-attendee/update-form-data' },
   { method: 'GET', path: '/event-attendee/get-form-data/:id' },
+  {method:'POST',path:'/event-registration/shocklogic-abstracts'},
 
   { method: 'POST', path: '/event-registration/sales-order' },
   { method: 'POST', path: '/event-registration/sales-order-lines' },
