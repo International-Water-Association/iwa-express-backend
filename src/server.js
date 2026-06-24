@@ -639,7 +639,51 @@ app.all('/api/proxy/*', async (req, res) => {
     if (!process.env.STRAPI_URL) {
       return res.status(500).json({ error: 'Missing STRAPI_URL' });
     }
+if (method === 'GET' && cleanTargetPath === '/others/broadcast/stream') {
+  const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
 
+  const response = await fetch(targetUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: authorizationHeader,
+      Accept: 'text/event-stream',
+    },
+  });
+
+  if (!response.ok) {
+    return res.status(response.status).json({
+      error: `Broadcast stream failed with status ${response.status}`,
+    });
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Credentials': 'true',
+  });
+
+  const reader = response.body.getReader();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      res.write(Buffer.from(value));
+    }
+  } catch (error) {
+    console.error('Broadcast stream pipe error:', error);
+  } finally {
+    res.end();
+  }
+
+  return;
+}
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
 
     const controller = new AbortController();
