@@ -66,7 +66,13 @@ const USER_TOKEN_ROUTES = [
 const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
-
+  { method: 'GET', path: '/others/get-wdce2025-sessions' },
+{ method: 'GET', path: '/others/get-wdce2025-abstract/:id' },
+{ method: 'GET', path: '/others/search-wdce2025-abstract/:key' },
+{ method: 'POST', path: '/others/createOrUpdateAbstract' },
+{ method: 'POST', path: '/others/updateFiletoSession' },
+{ method: 'POST', path: '/others/broadcast' },
+{ method: 'GET', path: '/others/broadcast/stream' },
   { method: 'POST', path: '/event-registration/ticket-types' },
   { method: 'POST', path: '/event-registration/states-by-country' },
   { method: 'POST', path: '/event-registration/tickets' },
