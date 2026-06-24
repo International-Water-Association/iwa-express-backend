@@ -64,7 +64,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-sugg-fm' },
   { method: 'GET', path: '/contact/get-featured-by-week/:id' },
   { method: 'POST', path: '/contact/get-contactSearch' },
-
+  {method:'POST',path:'/upload'},
   // Search / people
   { method: 'POST', path: '/search' },
   { method: 'POST', path: '/search/suggest' },
