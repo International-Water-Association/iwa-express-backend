@@ -85,6 +85,9 @@ const USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/group/getMyGroupsAdminDetails' },
   { method: 'POST', path: '/group/getMyGroupsSGAdminDetails' },
   { method: 'POST', path: '/group/updateGroup' },
+  {method:'POST',path:'/groups/join'},
+  {method:'POST',path:'/groups/leave'},
+  {method:'POST',path:'/groups/checkMembership'},
 
   // Community meetings
   { method: 'GET', path: '/community-meetings' },
