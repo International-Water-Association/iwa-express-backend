@@ -818,18 +818,16 @@ app.all('/api/proxy/*', async (req, res) => {
       }
     }
 
-    const requestBodyString = JSON.stringify(req.body || {});
-    const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
-
-    if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
-      return res.status(413).json({ error: 'Request body too large' });
-    }
-
     if (!process.env.STRAPI_URL) {
       return res.status(500).json({ error: 'Missing STRAPI_URL' });
     }
 
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
+    const requestContentType = req.headers['content-type'] || '';
+    const isMultipartUpload =
+      method === 'POST' &&
+      cleanTargetPath === '/upload' &&
+      requestContentType.includes('multipart/form-data');
 
     const controller = new AbortController();
     const timeoutMs = Number(process.env.PROXY_TIMEOUT_MS || 100000);
@@ -838,16 +836,46 @@ app.all('/api/proxy/*', async (req, res) => {
     let response;
 
     try {
-      response = await fetch(targetUrl, {
-        method,
-        headers: {
-          Authorization: authorizationHeader,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: ['GET', 'HEAD'].includes(method) ? undefined : requestBodyString,
-        signal: controller.signal,
-      });
+      if (isMultipartUpload) {
+        const contentLength = Number(req.headers['content-length'] || 0);
+        const maxUploadBytes = Number(process.env.PROXY_MAX_UPLOAD_BYTES || 10 * 1024 * 1024);
+
+        if (contentLength > maxUploadBytes) {
+          clearTimeout(timeout);
+          return res.status(413).json({ error: 'Upload file too large' });
+        }
+
+        response = await fetch(targetUrl, {
+          method,
+          headers: {
+            Authorization: authorizationHeader,
+            Accept: 'application/json',
+            'Content-Type': requestContentType,
+          },
+          body: req,
+          duplex: 'half',
+          signal: controller.signal,
+        });
+      } else {
+        const requestBodyString = JSON.stringify(req.body || {});
+        const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
+
+        if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
+          clearTimeout(timeout);
+          return res.status(413).json({ error: 'Request body too large' });
+        }
+
+        response = await fetch(targetUrl, {
+          method,
+          headers: {
+            Authorization: authorizationHeader,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: ['GET', 'HEAD'].includes(method) ? undefined : requestBodyString,
+          signal: controller.signal,
+        });
+      }
     } finally {
       clearTimeout(timeout);
     }
