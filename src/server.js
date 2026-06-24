@@ -7,6 +7,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const path = require('path');
 
 const app = express();
 
@@ -51,238 +52,73 @@ app.use(cors({
 const rateLimitStore = new Map();
 
 const BLOCKED_ROUTES = [
- { method: 'GET', path: '/event-admin/syncDB' },
-  { method: 'GET', path: '/membership/syncDB' },
+  { method: 'GET', path: '/event-admin/syncDB' },
 ];
 
 const USER_TOKEN_ROUTES = [
-   { method: 'GET', path: '/user/me' },
-  { method: 'POST', path: '/contact/updateprivacy' },
-  { method: 'POST', path: '/contact/updatecontact' },
-  { method: 'GET', path: '/contact/get-contact/:id' },
-  { method: 'POST', path: '/contact/updateFMMember' },
-  { method: 'GET', path: '/contact/get-sugg-fm' },
-  { method: 'GET', path: '/contact/get-featured-by-week/:id' },
-  { method: 'POST', path: '/contact/get-contactSearch' },
-  {method:'POST',path:'/upload'},
-  // Search / people
-  { method: 'POST', path: '/search' },
-  { method: 'POST', path: '/search/suggest' },
-  { method: 'GET', path: '/people-search/token' },
-  { method: 'POST', path: '/people-search/query' },
-  { method: 'GET', path: '/people-search/accounts' },
-  { method: 'POST', path: '/people-search/account' },
-  { method: 'POST', path: '/people-search/accounts-by-country' },
-  { method: 'POST', path: '/people-search/next' },
-  { method: 'POST', path: '/people-search/report' },
-  { method: 'GET', path: '/people-search/getSearch' },
-  { method: 'POST', path: '/people-search/getSearch' },
-
-  // Groups / communities
-  { method: 'GET', path: '/group/getMyGroups' },
-  { method: 'GET', path: '/group/getMyGroup/:id' },
-  { method: 'POST', path: '/group/getMyGroupsMembers' },
-  { method: 'POST', path: '/group/getMyGroupsAdminDetails' },
-  { method: 'POST', path: '/group/getMyGroupsSGAdminDetails' },
-  { method: 'POST', path: '/group/updateGroup' },
-  {method:'POST',path:'/groups/join'},
-  {method:'POST',path:'/groups/leave'},
-  {method:'POST',path:'/groups/checkMembership'},
-
-  // Community meetings
-  { method: 'GET', path: '/community-meetings' },
-  { method: 'POST', path: '/community-meetings' },
-  { method: 'PUT', path: '/community-meetings/:id' },
-  { method: 'DELETE', path: '/community-meetings/:id' },
-
-  // Friends / pals
-  { method: 'GET', path: '/contact-palls/getMyPals' },
-  { method: 'POST', path: '/contact-palls/getSuggMembers' },
-  { method: 'GET', path: '/contact-palls/GetPendingReceivedFriendRequests' },
-  { method: 'GET', path: '/contact-palls/GetMyFriends' },
-  { method: 'POST', path: '/contact-palls' },
-  { method: 'PUT', path: '/contact-palls/:id' },
-  { method: 'DELETE', path: '/contact-palls/:id' },
-
-  // Posts
-  { method: 'POST', path: '/post/getPost' },
-  { method: 'GET', path: '/post/TopTags' },
-  { method: 'POST', path: '/post' },
-  { method: 'PUT', path: '/post/:id' },
-  { method: 'DELETE', path: '/post/:id' },
-  { method: 'POST', path: '/post/getPostLike' },
-  { method: 'POST', path: '/post/getLinkPreview' },
-  { method: 'POST', path: '/post/getComments' },
-  { method: 'POST', path: '/post-likes' },
-  { method: 'DELETE', path: '/post-likes/:id' },
-  { method: 'POST', path: '/post-comments' },
-  { method: 'PUT', path: '/post-comments/:id' },
-  { method: 'DELETE', path: '/post-comments/:id' },
-  { method: 'POST', path: '/post-pin/create-pin' },
-  { method: 'DELETE', path: '/post-pin/delete-pin/:id' },
-  { method: 'GET', path: '/post-pin/get-pin/:id' },
-
-  // Video stories
-  { method: 'POST', path: '/video-story' },
-  { method: 'POST', path: '/video-story/getVideoPost' },
-  { method: 'DELETE', path: '/video-story/:id' },
-  { method: 'POST', path: '/video-story/getComments' },
-  { method: 'POST', path: '/video-story-likes' },
-  { method: 'DELETE', path: '/video-story-likes/:id' },
-  { method: 'POST', path: '/video-story-comments' },
-  { method: 'PUT', path: '/video-story-comments/:id' },
-  { method: 'DELETE', path: '/video-story-comments/:id' },
-
-  // Polls
-  { method: 'POST', path: '/poll' },
-  { method: 'POST', path: '/poll/all' },
-  { method: 'POST', path: '/poll/create' },
-  { method: 'PUT', path: '/poll/:id' },
-  { method: 'DELETE', path: '/poll/:id' },
-  { method: 'POST', path: '/poll-votes' },
-
-  // Newsletter / notifications
-  { method: 'POST', path: '/c-newsletters' },
-  { method: 'POST', path: '/c-newsletters/sendTestmail' },
-  { method: 'POST', path: '/c-newsletters/get-notification' },
-  { method: 'POST', path: '/c-newsletters/find' },
-  { method: 'POST', path: '/c-newsletters/findAdmin' },
-  { method: 'POST', path: '/c-newsletters/findSub' },
-  { method: 'POST', path: '/c-newsletters/findOne' },
-  { method: 'POST', path: '/c-newsletters/SendMailOnMeeting' },
-  { method: 'POST', path: '/c-newsletters/SendMailOnMemberChange' },
-  { method: 'GET', path: '/c-newsletters/newsletter-metrics/:id' },
-  { method: 'GET', path: '/c-newsletters/emailletter-metrics/:id' },
-  { method: 'GET', path: '/get-mynotification/:id' },
-  { method: 'GET', path: '/update-mynotification/:id' },
-
-  // Content library
-  { method: 'POST', path: '/content-lib/get-autocomplete' },
-  { method: 'POST', path: '/content-lib/get-autocomplete-author' },
-  { method: 'POST', path: '/content-lib/get-autocomplete-tags' },
-  { method: 'POST', path: '/content-lib/generatePresignedUrl' },
-  { method: 'GET', path: '/content-lib/:id' },
-  { method: 'GET', path: '/content-lib/getDocumentBase/:id' },
-  { method: 'GET', path: '/content-lib/user-doc-rating/:id' },
-  { method: 'POST', path: '/content-lib/search' },
-  { method: 'POST', path: '/content-lib/get-types' },
-  { method: 'GET', path: '/content-lib/get-event-info' },
-
-  // Ratings
-  { method: 'GET', path: '/cl-rating/:id' },
-  { method: 'POST', path: '/cl-rating' },
-
-  // Bookmarks
-  { method: 'GET', path: '/cl-bookmark' },
-  { method: 'GET', path: '/cl-bookmark/:id' },
-  { method: 'POST', path: '/cl-bookmark' },
-  { method: 'DELETE', path: '/cl-bookmark/:id' },
-
-  // Blocks
-  { method: 'GET', path: '/cl-block-url/:id' },
-  { method: 'GET', path: '/cl-block-item/:id' },
-
-  // Activity log
-  { method: 'POST', path: '/activity-log/create' },
-  { method: 'POST', path: '/activity-log/create-join' },
-
-  // Community library / bookmarks
-  { method: 'GET', path: '/community-libraries' },
-  { method: 'POST', path: '/community-libraries' },
-  { method: 'PUT', path: '/community-libraries/:id' },
-  { method: 'DELETE', path: '/community-libraries/:id' },
-  { method: 'GET', path: '/post-bookmarks' },
-  { method: 'POST', path: '/post-bookmarks' },
-  { method: 'DELETE', path: '/post-bookmarks/:id' },
-
-  // Membership / renewal
-  { method: 'POST', path: '/renewal/get-subscription' },
-  { method: 'POST', path: '/renewal/get-one-subscription' },
-  { method: 'POST', path: '/renewal/get-orders' },
-  { method: 'POST', path: '/renewal/get-terms' },
-  { method: 'POST', path: '/renewal/get-renew-path' },
-  { method: 'POST', path: '/renewal/get-splan' },
-  { method: 'POST', path: '/renewal/get-journal' },
+  { method: 'GET', path: '/user/me' },
+  { method: 'POST', path: '/event-registration/generate-discount-code' },
+  { method: 'POST', path: '/event-registration/generate-discount-code-job-status' },
+  { method: 'POST', path: '/event-registration/badge-attendees' },
+  { method: 'POST', path: '/event-registration/update-attendee-checkin' },
 ];
 
 const PROXY_TOKEN_ROUTES = [
-  // Common lookup routes
   { method: 'GET', path: '/contact/get-dialcode' },
-  { method: 'GET', path: '/country' },
-  { method: 'GET', path: '/region' },
-  { method: 'POST', path: '/tags' },
-  { method: 'POST', path: '/authors' },
-
-  // Event routes used inside Connect Plus / Join
-  { method: 'POST', path: '/event/validateEmail' },
-  { method: 'GET', path: '/event/getStateByCnty/:id' },
-  { method: 'GET', path: '/event/country' },
-  { method: 'GET', path: '/event/getEventCat' },
-  { method: 'POST', path: '/event/getEvent' },
-  { method: 'GET', path: '/event/GetMyWebinarRecordings/:id' },
+  { method: 'GET', path: '/others/broadcast/room-status/list' },
+  { method: 'POST', path: '/others/broadcast/room-status' },
+  { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
+  { method: 'GET', path: '/others/get-wdce2025-sessions' },
+  { method: 'GET', path: '/others/get-wdce2025-abstract/:id' },
+  { method: 'GET', path: '/others/search-wdce2025-abstract/:key' },
+  { method: 'POST', path: '/others/createOrUpdateAbstract' },
+  { method: 'POST', path: '/others/updateFiletoSession' },
+  { method: 'POST', path: '/others/broadcast' },
+  { method: 'GET', path: '/others/broadcast/stream' },
+  { method: 'POST', path: '/event-registration/ticket-types' },
   { method: 'POST', path: '/event-registration/states-by-country' },
-  { method: 'GET', path: '/event/getEventGuestRegToken' },
+  { method: 'POST', path: '/event-registration/tickets' },
+  { method: 'POST', path: '/event-registration/price-rules' },
+  { method: 'POST', path: '/event-registration/check-discount-code' },
+  { method: 'POST', path: '/event-registration/check-gala-dinner' },
 
-  // Join / membership routes
-  { method: 'POST', path: '/membership/validateEmail' },
-  { method: 'POST', path: '/membership/insertUpdateMember' },
-  { method: 'POST', path: '/membership/getPrice' },
-  { method: 'GET', path: '/membership/getContactCol' },
-  { method: 'GET', path: '/membership/getDoc/:type/:id' },
-  { method: 'POST', path: '/membership/createMDiscountcode' },
+  { method: 'GET', path: '/event-attendee/get-all-events' },
+  { method: 'GET', path: '/event-attendee/get-basic-event-data/:key' },
+  { method: 'GET', path: '/event-attendee/get-venue-data/:key' },
+  { method: 'GET', path: '/event-attendee/get-country' },
+  { method: 'GET', path: '/event-attendee/get-guest-token' },
+  { method: 'GET', path: '/event-attendee/get-sub-event/:key' },
 
-  // Join / contact server-token routes
-  { method: 'POST', path: '/contact/validate-user-email' },
-  { method: 'POST', path: '/contact/create-member-sales-order' },
-  { method: 'POST', path: '/contact/get-account-by-id' },
-  { method: 'POST', path: '/contact/check-account-by-name' },
-  { method: 'POST', path: '/contact/get-journals' },
-  { method: 'POST', path: '/contact/get-sales-order-total' },
-  { method: 'POST', path: '/contact/get-sales-order-invoice' },
-  { method: 'POST', path: '/contact/get-membership-email-data' },
-  { method: 'POST', path: '/contact/get-discount-ticket-types' },
-  { method: 'GET', path: '/contact/get-source-codes' },
-  { method: 'POST', path: '/contact/get-pricing-rules-by-ticket-type' },
-  { method: 'POST', path: '/contact/get-price-rule-variables' },
-  { method: 'POST', path: '/contact/create-source-code' },
+  { method: 'POST', path: '/event-registration/order-lines-by-email' },
+  { method: 'POST', path: '/event-registration/check-already-paid' },
+  { method: 'POST', path: '/event-registration/getUserByEmail' },
 
-  // Join / renewal server-token routes
-  { method: 'POST', path: '/renewal/get-renewal-contact-data' },
+  { method: 'POST', path: '/event-attendee/validate-email' },
+  { method: 'POST', path: '/event-attendee/send-email' },
+  { method: 'POST', path: '/event/activity-log' },
+  { method: 'POST', path: '/event-attendee/get-order-summary' },
+  { method: 'POST', path: '/event-attendee/update-form-data' },
+  { method: 'GET', path: '/event-attendee/get-form-data/:id' },
+  { method: 'POST', path: '/shocklogic-sync/shocklogic-abstracts' },
 
-  // Others
-  { method: 'POST', path: '/others/sendEmailOther' },
+  { method: 'POST', path: '/event-registration/sales-order' },
+  { method: 'POST', path: '/event-registration/sales-order-lines' },
+  { method: 'POST', path: '/event-registration/receipt' },
+  { method: 'POST', path: '/event-registration/draft-count' },
+  { method: 'POST', path: '/event-registration/delete-draft-order' },
+  { method: 'POST', path: '/event-registration/update-payment-method' },
+  { method: 'POST', path: '/event-registration/order-data' },
+  { method: 'POST', path: '/event-registration/add-to-waitlist' },
+  { method: 'POST', path: '/event-registration/create-sales-order-with-validation' },
+  { method: 'POST', path: '/event-registration/sales-order-payment-details' },
 
-  // Nomination
-  { method: 'GET', path: '/nomination/getAllNomination/:id' },
-  { method: 'POST', path: '/nomination/submit-form' },
-  { method: 'POST', path: '/nomination/submit-form-fd' },
-  { method: 'POST', path: '/nomination/submit-form-gm' },
-  { method: 'POST', path: '/nomination/checkContactExitForm' },
+  { method: 'POST', path: '/event-attendee/insert-attendee' },
+  { method: 'POST', path: '/event-attendee/insert-sub-event-attendee' },
+  { method: 'POST', path: '/event-attendee/insert-single-attendee' },
 
-  // Public CMS / content routes
-  { method: 'GET', path: '/dashboard' },
-  { method: 'GET', path: '/announcement' },
-  { method: 'GET', path: '/announcements' },
-  { method: 'GET', path: '/announcements/:id' },
-  { method: 'GET', path: '/featured-articles' },
-  { method: 'GET', path: '/faq-categories' },
-  { method: 'GET', path: '/news' },
-  { method: 'GET', path: '/news-feeds' },
-  { method: 'GET', path: '/news-categories' },
-  { method: 'GET', path: '/news-categories/:id' },
-  { method: 'GET', path: '/learns' },
-  { method: 'GET', path: '/learn-topics' },
-  { method: 'POST', path: '/learn-blog/getAll' },
-  { method: 'GET', path: '/learn-blog' },
-  { method: 'POST', path: '/learn-video/getAll' },
-  { method: 'GET', path: '/learn-video' },
-  { method: 'GET', path: '/learn-infographics' },
-  { method: 'GET', path: '/learn-courses' },
-  { method: 'POST', path: '/content-lib/get-documents' },
-  { method: 'GET', path: '/featured-publications' },
-  { method: 'GET', path: '/most-read-articles' },
-  { method: 'POST', path: '/featured-publications/most-read' },
-  { method: 'GET', path: '/featured-books' },
+  { method: 'POST', path: '/event-attendee/apply-discount-code' },
+  { method: 'POST', path: '/event-attendee/prepare-additional-ticket' },
+  { method: 'POST', path: '/event-attendee/get-attendee-by-sales-order-id' },
 ];
 
 const EVENT_GUEST_TOKEN_ROUTES = [];
@@ -323,31 +159,8 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
-function normalizePath(value) {
-  if (!value) {
-    return '/';
-  }
-
-  let path = String(value).trim();
-
-  path = path.split('?')[0].split('#')[0];
-
-  try {
-    path = decodeURIComponent(path);
-  } catch {
-    // Keep original path if malformed URI is received.
-  }
-
-  path = path.replace(/\\/g, '/');
-  path = path.replace(/\/{2,}/g, '/');
-
-  if (!path.startsWith('/')) {
-    path = `/${path}`;
-  }
-
-  path = path.replace(/\/+$/, '');
-
-  return path || '/';
+function normalizePath(path) {
+  return path.split('?')[0].replace(/\/+$/, '') || '/';
 }
 
 function routeToRegex(routePath) {
@@ -630,10 +443,10 @@ function safeJoinUrl(baseUrl, targetPath) {
 
 function getServerTokenForPath(cleanTargetPath) {
   if (cleanTargetPath.toLowerCase().includes('webinar')) {
-    return process.env.CONNECT_PLUS_API_TOKEN;
+    return process.env.WEBINAR_API_TOKEN;
   }
 
-  return process.env.CONNECT_PLUS_API_TOKEN;
+  return process.env.EVENT_API_TOKEN;
 }
 
 app.get('/health', (req, res) => {
@@ -818,16 +631,62 @@ app.all('/api/proxy/*', async (req, res) => {
       }
     }
 
+    const requestBodyString = JSON.stringify(req.body || {});
+    const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
+
+    if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
+      return res.status(413).json({ error: 'Request body too large' });
+    }
+
     if (!process.env.STRAPI_URL) {
       return res.status(500).json({ error: 'Missing STRAPI_URL' });
     }
+    if (method === 'GET' && cleanTargetPath === '/others/broadcast/stream') {
+      const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
 
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: authorizationHeader,
+          Accept: 'text/event-stream',
+        },
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: `Broadcast stream failed with status ${response.status}`,
+        });
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+      });
+
+      const reader = response.body.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          res.write(Buffer.from(value));
+        }
+      } catch (error) {
+        console.error('Broadcast stream pipe error:', error);
+      } finally {
+        res.end();
+      }
+
+      return;
+    }
     const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
-    const requestContentType = req.headers['content-type'] || '';
-    const isMultipartUpload =
-      method === 'POST' &&
-      cleanTargetPath === '/upload' &&
-      requestContentType.includes('multipart/form-data');
 
     const controller = new AbortController();
     const timeoutMs = Number(process.env.PROXY_TIMEOUT_MS || 100000);
@@ -836,46 +695,16 @@ app.all('/api/proxy/*', async (req, res) => {
     let response;
 
     try {
-      if (isMultipartUpload) {
-        const contentLength = Number(req.headers['content-length'] || 0);
-        const maxUploadBytes = Number(process.env.PROXY_MAX_UPLOAD_BYTES || 10 * 1024 * 1024);
-
-        if (contentLength > maxUploadBytes) {
-          clearTimeout(timeout);
-          return res.status(413).json({ error: 'Upload file too large' });
-        }
-
-        response = await fetch(targetUrl, {
-          method,
-          headers: {
-            Authorization: authorizationHeader,
-            Accept: 'application/json',
-            'Content-Type': requestContentType,
-          },
-          body: req,
-          duplex: 'half',
-          signal: controller.signal,
-        });
-      } else {
-        const requestBodyString = JSON.stringify(req.body || {});
-        const maxBodyBytes = Number(process.env.PROXY_MAX_BODY_BYTES || 100000);
-
-        if (!['GET', 'HEAD'].includes(method) && requestBodyString.length > maxBodyBytes) {
-          clearTimeout(timeout);
-          return res.status(413).json({ error: 'Request body too large' });
-        }
-
-        response = await fetch(targetUrl, {
-          method,
-          headers: {
-            Authorization: authorizationHeader,
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: ['GET', 'HEAD'].includes(method) ? undefined : requestBodyString,
-          signal: controller.signal,
-        });
-      }
+      response = await fetch(targetUrl, {
+        method,
+        headers: {
+          Authorization: authorizationHeader,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: ['GET', 'HEAD'].includes(method) ? undefined : requestBodyString,
+        signal: controller.signal,
+      });
     } finally {
       clearTimeout(timeout);
     }
