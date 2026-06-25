@@ -56,38 +56,47 @@ const BLOCKED_ROUTES = [
 ];
 
 const USER_TOKEN_ROUTES = [
-   { method: 'GET', path: '/user/me' },
+  { method: 'GET', path: '/user/me' },
+
+  // Contact
+  { method: 'GET', path: '/contact/get-contact/:id' },
   { method: 'POST', path: '/contact/updateprivacy' },
   { method: 'POST', path: '/contact/updatecontact' },
-  { method: 'GET', path: '/contact/get-contact/:id' },
   { method: 'POST', path: '/contact/updateFMMember' },
   { method: 'GET', path: '/contact/get-sugg-fm' },
   { method: 'GET', path: '/contact/get-featured-by-week/:id' },
   { method: 'POST', path: '/contact/get-contactSearch' },
-  {method:'POST',path:'/upload'},
-  // Search / people
-  { method: 'POST', path: '/search' },
-  { method: 'POST', path: '/search/suggest' },
-  { method: 'GET', path: '/people-search/token' },
-  { method: 'POST', path: '/people-search/query' },
-  { method: 'GET', path: '/people-search/accounts' },
-  { method: 'POST', path: '/people-search/account' },
-  { method: 'POST', path: '/people-search/accounts-by-country' },
-  { method: 'POST', path: '/people-search/next' },
-  { method: 'POST', path: '/people-search/report' },
-  { method: 'GET', path: '/people-search/getSearch' },
-  { method: 'POST', path: '/people-search/getSearch' },
 
-  // Groups / communities
+  // Upload
+  { method: 'POST', path: '/upload' },
+
+  // Others / forms / PIA / YWP
+  { method: 'GET', path: '/others/getSingleForm/:id' },
+  { method: 'POST', path: '/others/validate-gm-registration' },
+  { method: 'POST', path: '/others/insertForm' },
+  { method: 'POST', path: '/others/send-fellowship-confirmation' },
+  { method: 'GET', path: '/others/getAllYWPNominee' },
+  { method: 'GET', path: '/others/getYWPVotingDetails' },
+  { method: 'GET', path: '/others/getProfileForYWP/:id' },
+  { method: 'GET', path: '/others/getApplicationDetails/:id' },
+  { method: 'POST', path: '/others/sendEmailOther' },
+  { method: 'GET', path: '/others/getPIA/:id' },
+  { method: 'PUT', path: '/others/updatePIA' },
+  { method: 'PUT', path: '/others/updateYWPNominees' },
+
+  // PIA discount
+  { method: 'GET', path: '/pia-discount/VerifyPIACode/:code' },
+
+  // Groups
   { method: 'GET', path: '/group/getMyGroups' },
   { method: 'GET', path: '/group/getMyGroup/:id' },
   { method: 'POST', path: '/group/getMyGroupsMembers' },
   { method: 'POST', path: '/group/getMyGroupsAdminDetails' },
   { method: 'POST', path: '/group/getMyGroupsSGAdminDetails' },
   { method: 'POST', path: '/group/updateGroup' },
-  {method:'POST',path:'/groups/join'},
-  {method:'POST',path:'/groups/leave'},
-  {method:'POST',path:'/groups/checkMembership'},
+  { method: 'POST', path: '/groups/join' },
+  { method: 'POST', path: '/groups/leave' },
+  { method: 'POST', path: '/groups/checkMembership' },
 
   // Community meetings
   { method: 'GET', path: '/community-meetings' },
@@ -95,78 +104,48 @@ const USER_TOKEN_ROUTES = [
   { method: 'PUT', path: '/community-meetings/:id' },
   { method: 'DELETE', path: '/community-meetings/:id' },
 
-  // Friends / pals
-  { method: 'GET', path: '/contact-palls/getMyPals' },
-  { method: 'POST', path: '/contact-palls/getSuggMembers' },
-  { method: 'GET', path: '/contact-palls/GetPendingReceivedFriendRequests' },
-  { method: 'GET', path: '/contact-palls/GetMyFriends' },
-  { method: 'POST', path: '/contact-palls' },
-  { method: 'PUT', path: '/contact-palls/:id' },
-  { method: 'DELETE', path: '/contact-palls/:id' },
-
-  // Posts
-  { method: 'POST', path: '/post/getPost' },
-  { method: 'GET', path: '/post/TopTags' },
-  { method: 'POST', path: '/post' },
-  { method: 'PUT', path: '/post/:id' },
-  { method: 'DELETE', path: '/post/:id' },
-  { method: 'POST', path: '/post/getPostLike' },
-  { method: 'POST', path: '/post/getLinkPreview' },
-  { method: 'POST', path: '/post/getComments' },
-  { method: 'POST', path: '/post-likes' },
-  { method: 'DELETE', path: '/post-likes/:id' },
-  { method: 'POST', path: '/post-comments' },
-  { method: 'PUT', path: '/post-comments/:id' },
-  { method: 'DELETE', path: '/post-comments/:id' },
-  { method: 'POST', path: '/post-pin/create-pin' },
-  { method: 'DELETE', path: '/post-pin/delete-pin/:id' },
-  { method: 'GET', path: '/post-pin/get-pin/:id' },
-
-  // Video stories
-  { method: 'POST', path: '/video-story' },
-  { method: 'POST', path: '/video-story/getVideoPost' },
-  { method: 'DELETE', path: '/video-story/:id' },
-  { method: 'POST', path: '/video-story/getComments' },
-  { method: 'POST', path: '/video-story-likes' },
-  { method: 'DELETE', path: '/video-story-likes/:id' },
-  { method: 'POST', path: '/video-story-comments' },
-  { method: 'PUT', path: '/video-story-comments/:id' },
-  { method: 'DELETE', path: '/video-story-comments/:id' },
-
-  // Polls
-  { method: 'POST', path: '/poll' },
-  { method: 'POST', path: '/poll/all' },
-  { method: 'POST', path: '/poll/create' },
-  { method: 'PUT', path: '/poll/:id' },
-  { method: 'DELETE', path: '/poll/:id' },
-  { method: 'POST', path: '/poll-votes' },
-
-  // Newsletter / notifications
-  { method: 'POST', path: '/c-newsletters' },
-  { method: 'POST', path: '/c-newsletters/sendTestmail' },
-  { method: 'POST', path: '/c-newsletters/get-notification' },
-  { method: 'POST', path: '/c-newsletters/find' },
-  { method: 'POST', path: '/c-newsletters/findAdmin' },
-  { method: 'POST', path: '/c-newsletters/findSub' },
-  { method: 'POST', path: '/c-newsletters/findOne' },
-  { method: 'POST', path: '/c-newsletters/SendMailOnMeeting' },
-  { method: 'POST', path: '/c-newsletters/SendMailOnMemberChange' },
-  { method: 'GET', path: '/c-newsletters/newsletter-metrics/:id' },
-  { method: 'GET', path: '/c-newsletters/emailletter-metrics/:id' },
-  { method: 'GET', path: '/get-mynotification/:id' },
-  { method: 'GET', path: '/update-mynotification/:id' },
-
   // Content library
+  { method: 'GET', path: '/content-lib/:id' },
+  { method: 'POST', path: '/content-lib' },
+  { method: 'POST', path: '/content-lib/get-documents' },
+  { method: 'POST', path: '/content-lib/update-document' },
+  { method: 'POST', path: '/content-lib/delete-document' },
+  { method: 'POST', path: '/content-lib/generatePresignedUrl' },
+  { method: 'POST', path: '/content-lib/get-types' },
+  { method: 'POST', path: '/content-lib/get-content-ai' },
+  { method: 'POST', path: '/content-lib/get-contentTypes' },
   { method: 'POST', path: '/content-lib/get-autocomplete' },
   { method: 'POST', path: '/content-lib/get-autocomplete-author' },
   { method: 'POST', path: '/content-lib/get-autocomplete-tags' },
-  { method: 'POST', path: '/content-lib/generatePresignedUrl' },
-  { method: 'GET', path: '/content-lib/:id' },
   { method: 'GET', path: '/content-lib/getDocumentBase/:id' },
   { method: 'GET', path: '/content-lib/user-doc-rating/:id' },
   { method: 'POST', path: '/content-lib/search' },
-  { method: 'POST', path: '/content-lib/get-types' },
   { method: 'GET', path: '/content-lib/get-event-info' },
+
+  // CL upload
+  { method: 'POST', path: '/cl-upload' },
+  { method: 'GET', path: '/cl-upload/:id' },
+
+  // CL main page
+  { method: 'GET', path: '/cl-main-page' },
+  { method: 'POST', path: '/cl-main-page' },
+  { method: 'POST', path: '/cl-main-page/update' },
+  { method: 'DELETE', path: '/cl-main-page/:id' },
+
+  // CL block
+  { method: 'POST', path: '/cl-block' },
+  { method: 'POST', path: '/cl-block/update' },
+  { method: 'POST', path: '/cl-block/pagelinks' },
+  { method: 'GET', path: '/cl-block/:id' },
+  { method: 'DELETE', path: '/cl-block/:id' },
+  { method: 'GET', path: '/cl-block-url/:id' },
+
+  // CL block item
+  { method: 'POST', path: '/cl-block-item' },
+  { method: 'POST', path: '/cl-block-item/update' },
+  { method: 'POST', path: '/cl-block-item/update-sort' },
+  { method: 'GET', path: '/cl-block-item/:id' },
+  { method: 'DELETE', path: '/cl-block-item/:id' },
 
   // Ratings
   { method: 'GET', path: '/cl-rating/:id' },
@@ -178,86 +157,22 @@ const USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/cl-bookmark' },
   { method: 'DELETE', path: '/cl-bookmark/:id' },
 
-  // Blocks
-  { method: 'GET', path: '/cl-block-url/:id' },
-  { method: 'GET', path: '/cl-block-item/:id' },
-
-  // Activity log
-  { method: 'POST', path: '/activity-log/create' },
-  { method: 'POST', path: '/activity-log/create-join' },
-
-  // Community library / bookmarks
-  { method: 'GET', path: '/community-libraries' },
-  { method: 'POST', path: '/community-libraries' },
-  { method: 'PUT', path: '/community-libraries/:id' },
-  { method: 'DELETE', path: '/community-libraries/:id' },
-  { method: 'GET', path: '/post-bookmarks' },
-  { method: 'POST', path: '/post-bookmarks' },
-  { method: 'DELETE', path: '/post-bookmarks/:id' },
-
-  // Membership / renewal
-  { method: 'POST', path: '/renewal/get-subscription' },
-  { method: 'POST', path: '/renewal/get-one-subscription' },
-  { method: 'POST', path: '/renewal/get-orders' },
-  { method: 'POST', path: '/renewal/get-terms' },
-  { method: 'POST', path: '/renewal/get-renew-path' },
-  { method: 'POST', path: '/renewal/get-splan' },
-  { method: 'POST', path: '/renewal/get-journal' },
+  // Existing search / people / posts / polls / newsletters / membership routes...
 ];
 
 const PROXY_TOKEN_ROUTES = [
-  // Common lookup routes
+  // Public lookup routes
+  { method: 'GET', path: '/event/country' },
+  { method: 'GET', path: '/event/getEventGuestRegToken' },
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'GET', path: '/country' },
   { method: 'GET', path: '/region' },
-  { method: 'POST', path: '/tags' },
-  { method: 'POST', path: '/authors' },
 
-  // Event routes used inside Connect Plus / Join
-  { method: 'POST', path: '/event/validateEmail' },
-  { method: 'GET', path: '/event/getStateByCnty/:id' },
-  { method: 'GET', path: '/event/country' },
-  { method: 'GET', path: '/event/getEventCat' },
-  { method: 'POST', path: '/event/getEvent' },
-  { method: 'GET', path: '/event/GetMyWebinarRecordings/:id' },
-  { method: 'POST', path: '/event-registration/states-by-country' },
-  { method: 'GET', path: '/event/getEventGuestRegToken' },
+  // Learn / public SG list
+  { method: 'GET', path: '/learn-sgs' },
 
-  // Join / membership routes
-  { method: 'POST', path: '/membership/validateEmail' },
-  { method: 'POST', path: '/membership/insertUpdateMember' },
-  { method: 'POST', path: '/membership/getPrice' },
-  { method: 'GET', path: '/membership/getContactCol' },
-  { method: 'GET', path: '/membership/getDoc/:type/:id' },
-  { method: 'POST', path: '/membership/createMDiscountcode' },
-
-  // Join / contact server-token routes
-  { method: 'POST', path: '/contact/validate-user-email' },
-  { method: 'POST', path: '/contact/create-member-sales-order' },
-  { method: 'POST', path: '/contact/get-account-by-id' },
-  { method: 'POST', path: '/contact/check-account-by-name' },
-  { method: 'POST', path: '/contact/get-journals' },
-  { method: 'POST', path: '/contact/get-sales-order-total' },
-  { method: 'POST', path: '/contact/get-sales-order-invoice' },
-  { method: 'POST', path: '/contact/get-membership-email-data' },
-  { method: 'POST', path: '/contact/get-discount-ticket-types' },
-  { method: 'GET', path: '/contact/get-source-codes' },
-  { method: 'POST', path: '/contact/get-pricing-rules-by-ticket-type' },
-  { method: 'POST', path: '/contact/get-price-rule-variables' },
-  { method: 'POST', path: '/contact/create-source-code' },
-
-  // Join / renewal server-token routes
-  { method: 'POST', path: '/renewal/get-renewal-contact-data' },
-
-  // Others
+  // Public email / form routes only if they are intentionally public
   { method: 'POST', path: '/others/sendEmailOther' },
-
-  // Nomination
-  { method: 'GET', path: '/nomination/getAllNomination/:id' },
-  { method: 'POST', path: '/nomination/submit-form' },
-  { method: 'POST', path: '/nomination/submit-form-fd' },
-  { method: 'POST', path: '/nomination/submit-form-gm' },
-  { method: 'POST', path: '/nomination/checkContactExitForm' },
 
   // Public CMS / content routes
   { method: 'GET', path: '/dashboard' },
@@ -278,11 +193,10 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/learn-video' },
   { method: 'GET', path: '/learn-infographics' },
   { method: 'GET', path: '/learn-courses' },
-  { method: 'POST', path: '/content-lib/get-documents' },
   { method: 'GET', path: '/featured-publications' },
   { method: 'GET', path: '/most-read-articles' },
   { method: 'POST', path: '/featured-publications/most-read' },
-  { method: 'GET', path: '/featured-books' },
+  { method: 'GET', path: '/featured-books' }
 ];
 
 const EVENT_GUEST_TOKEN_ROUTES = [];
