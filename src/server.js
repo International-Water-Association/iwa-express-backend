@@ -95,6 +95,7 @@ const USER_TOKEN_ROUTES = [
   // CL upload
   { method: 'POST', path: '/cl-upload' },
   { method: 'GET', path: '/cl-upload/:id' },
+  { method: 'GET', path: '/user/me' },
 
   // CL main page
   { method: 'GET', path: '/cl-main-page' },
@@ -131,7 +132,6 @@ const USER_TOKEN_ROUTES = [
 ];
 
 const PROXY_TOKEN_ROUTES = [
-  { method: 'GET', path: '/user/me' },
 
   // Contact
   { method: 'GET', path: '/contact/get-contact/:id' },
