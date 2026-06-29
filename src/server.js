@@ -56,37 +56,7 @@ const BLOCKED_ROUTES = [
 ];
 
 const USER_TOKEN_ROUTES = [
-  { method: 'GET', path: '/user/me' },
-
-  // Contact
-  { method: 'GET', path: '/contact/get-contact/:id' },
-  { method: 'POST', path: '/contact/updateprivacy' },
-  { method: 'POST', path: '/contact/updatecontact' },
-  { method: 'POST', path: '/contact/updateFMMember' },
-  { method: 'GET', path: '/contact/get-sugg-fm' },
-  { method: 'GET', path: '/contact/get-featured-by-week/:id' },
-  { method: 'POST', path: '/contact/get-contactSearch' },
-
-  // Upload
-  { method: 'POST', path: '/upload' },
-
-  // Others / forms / PIA / YWP
-  { method: 'GET', path: '/others/getSingleForm/:id' },
-  { method: 'POST', path: '/others/validate-gm-registration' },
-  { method: 'POST', path: '/others/insertForm' },
-  { method: 'POST', path: '/others/send-fellowship-confirmation' },
-  { method: 'GET', path: '/others/getAllYWPNominee' },
-  { method: 'GET', path: '/others/getYWPVotingDetails' },
-  { method: 'GET', path: '/others/getProfileForYWP/:id' },
-  { method: 'GET', path: '/others/getApplicationDetails/:id' },
-  { method: 'POST', path: '/others/sendEmailOther' },
-  { method: 'GET', path: '/others/getPIA/:id' },
-  { method: 'PUT', path: '/others/updatePIA' },
-  { method: 'PUT', path: '/others/updateYWPNominees' },
-
-  // PIA discount
-  { method: 'GET', path: '/pia-discount/VerifyPIACode/:code' },
-
+  
   // Groups
   { method: 'GET', path: '/group/getMyGroups' },
   { method: 'GET', path: '/group/getMyGroup/:id' },
@@ -161,6 +131,37 @@ const USER_TOKEN_ROUTES = [
 ];
 
 const PROXY_TOKEN_ROUTES = [
+  { method: 'GET', path: '/user/me' },
+
+  // Contact
+  { method: 'GET', path: '/contact/get-contact/:id' },
+  { method: 'POST', path: '/contact/updateprivacy' },
+  { method: 'POST', path: '/contact/updatecontact' },
+  { method: 'POST', path: '/contact/updateFMMember' },
+  { method: 'GET', path: '/contact/get-sugg-fm' },
+  { method: 'GET', path: '/contact/get-featured-by-week/:id' },
+  { method: 'POST', path: '/contact/get-contactSearch' },
+
+  // Upload
+  { method: 'POST', path: '/upload' },
+
+  // Others / forms / PIA / YWP
+  { method: 'GET', path: '/others/getSingleForm/:id' },
+  { method: 'POST', path: '/others/validate-gm-registration' },
+  { method: 'POST', path: '/others/insertForm' },
+  { method: 'POST', path: '/others/send-fellowship-confirmation' },
+  { method: 'GET', path: '/others/getAllYWPNominee' },
+  { method: 'GET', path: '/others/getYWPVotingDetails' },
+  { method: 'GET', path: '/others/getProfileForYWP/:id' },
+  { method: 'GET', path: '/others/getApplicationDetails/:id' },
+  { method: 'POST', path: '/others/sendEmailOther' },
+  { method: 'GET', path: '/others/getPIA/:id' },
+  { method: 'PUT', path: '/others/updatePIA' },
+  { method: 'PUT', path: '/others/updateYWPNominees' },
+
+  // PIA discount
+  { method: 'GET', path: '/pia-discount/VerifyPIACode/:code' },
+
   // Public lookup routes
   { method: 'GET', path: '/event/country' },
   { method: 'GET', path: '/event/getEventGuestRegToken' },
