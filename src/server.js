@@ -112,7 +112,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-registration/add-to-waitlist' },
   { method: 'POST', path: '/event-registration/create-sales-order-with-validation' },
   { method: 'POST', path: '/event-registration/sales-order-payment-details' },
-
+  { method: "GET", path: "/others/chat/stream" },
   { method: 'POST', path: '/event-attendee/insert-attendee' },
   { method: 'POST', path: '/event-attendee/insert-sub-event-attendee' },
   { method: 'POST', path: '/event-attendee/insert-single-attendee' },
@@ -642,7 +642,13 @@ app.all('/api/proxy/*', async (req, res) => {
     if (!process.env.STRAPI_URL) {
       return res.status(500).json({ error: 'Missing STRAPI_URL' });
     }
-    if (method === 'GET' && cleanTargetPath === '/others/broadcast/stream') {
+    if (
+      method === 'GET' &&
+      (
+        cleanTargetPath === '/others/broadcast/stream' ||
+        cleanTargetPath === '/others/chat/stream'
+      )
+    ) {
       const targetUrl = safeJoinUrl(process.env.STRAPI_URL, targetPath);
 
       const response = await fetch(targetUrl, {
@@ -655,7 +661,7 @@ app.all('/api/proxy/*', async (req, res) => {
 
       if (!response.ok) {
         return res.status(response.status).json({
-          error: `Broadcast stream failed with status ${response.status}`,
+          error: `SSE stream failed with status ${response.status}`,
         });
       }
 
@@ -680,7 +686,7 @@ app.all('/api/proxy/*', async (req, res) => {
           res.write(Buffer.from(value));
         }
       } catch (error) {
-        console.error('Broadcast stream pipe error:', error);
+        console.error('SSE stream pipe error:', error);
       } finally {
         res.end();
       }
