@@ -63,6 +63,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-registration/update-attendee-checkin' },
 ];
 
+
 const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'GET', path: '/others/broadcast/room-status/list' },
@@ -100,8 +101,8 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-attendee/update-form-data' },
   { method: 'GET', path: '/event-attendee/get-form-data/:id' },
   { method: 'POST', path: '/shocklogic-sync/shocklogic-abstracts' },
-  { method: "POST", path: "/others/chat/send" },
-  { method: "GET", path: "/others/chat/history" },
+  { method: "POST", path: "/others/chat/send" }, 
+  { method: "GET", path: "/others/chat/history/:key" },
   { method: 'POST', path: '/event-registration/sales-order' },
   { method: 'POST', path: '/event-registration/sales-order-lines' },
   { method: 'POST', path: '/event-registration/receipt' },
