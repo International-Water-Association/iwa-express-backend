@@ -101,7 +101,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/event-attendee/get-form-data/:id' },
   { method: 'POST', path: '/shocklogic-sync/shocklogic-abstracts' },
   { method: "POST", path: "/others/chat/send" },
-  { method: "GET", path: "/others/chat/history" },
+  { method: "GET", path: "/others/chat/history/:key" },
   { method: 'POST', path: '/event-registration/sales-order' },
   { method: 'POST', path: '/event-registration/sales-order-lines' },
   { method: 'POST', path: '/event-registration/receipt' },
