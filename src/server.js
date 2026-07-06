@@ -276,7 +276,6 @@ function isUnsafePath(targetPath) {
     cleanPath.includes('..') ||
     cleanPath.includes('\\') ||
     cleanPath.startsWith('//') ||
-    cleanPath.includes('/admin') ||
     cleanPath.includes('/content-manager') ||
     cleanPath.includes('/content-type-builder') ||
     cleanPath.includes('/users-permissions') ||
