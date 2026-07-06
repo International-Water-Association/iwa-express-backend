@@ -270,20 +270,35 @@ function isBrowserRequest(req) {
 }
 
 function isUnsafePath(targetPath) {
-  const cleanPath = targetPath.toLowerCase();
+  const cleanPath = normalizePath(targetPath).toLowerCase();
 
-  return (
+  if (
     cleanPath.includes('..') ||
     cleanPath.includes('\\') ||
-    cleanPath.startsWith('//') ||
-    cleanPath.includes('/content-manager') ||
-    cleanPath.includes('/content-type-builder') ||
-    cleanPath.includes('/users-permissions') ||
-    cleanPath.includes('/roles') ||
-    cleanPath.includes('/permissions') ||
-    cleanPath.includes('/settings') ||
-    cleanPath.includes('/config')
-  );
+    cleanPath.startsWith('//')
+  ) {
+    return true;
+  }
+
+  /**
+   * Block only real Strapi/admin system routes.
+   * Do not use includes('/admin') because values like
+   * /others/chat/history/admin are valid business routes.
+   */
+  const blockedPrefixes = [
+    '/admin',
+    '/content-manager',
+    '/content-type-builder',
+    '/users-permissions',
+    '/roles',
+    '/permissions',
+    '/settings',
+    '/config',
+  ];
+
+  return blockedPrefixes.some((prefix) => (
+    cleanPath === prefix || cleanPath.startsWith(`${prefix}/`)
+  ));
 }
 
 function isValidEmail(email) {
