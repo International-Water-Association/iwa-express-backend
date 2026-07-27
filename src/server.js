@@ -81,7 +81,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-registration/price-rules' },
   { method: 'POST', path: '/event-registration/check-discount-code' },
   { method: 'POST', path: '/event-registration/check-gala-dinner' },
-
+  { method: 'POST', path: '/event-registration/guest-order-details' },
   { method: 'GET', path: '/event-attendee/get-all-events' },
   { method: 'GET', path: '/event-attendee/get-basic-event-data/:key' },
   { method: 'GET', path: '/event-attendee/get-venue-data/:key' },
