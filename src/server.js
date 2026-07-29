@@ -51,12 +51,12 @@ app.use(cors({
 const rateLimitStore = new Map();
 
 const BLOCKED_ROUTES = [
- { method: 'GET', path: '/event-admin/syncDB' },
+  { method: 'GET', path: '/event-admin/syncDB' },
   { method: 'GET', path: '/membership/syncDB' },
 ];
 
 const USER_TOKEN_ROUTES = [
-   { method: 'GET', path: '/user/me' },
+  { method: 'GET', path: '/user/me' },
   { method: 'POST', path: '/contact/updateprivacy' },
   { method: 'POST', path: '/contact/updatecontact' },
   { method: 'GET', path: '/contact/get-contact/:id' },
@@ -64,7 +64,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-sugg-fm' },
   { method: 'GET', path: '/contact/get-featured-by-week/:id' },
   { method: 'POST', path: '/contact/get-contactSearch' },
-  {method:'POST',path:'/upload'},
+  { method: 'POST', path: '/upload' },
   // Search / people
   { method: 'POST', path: '/search' },
   { method: 'POST', path: '/search/suggest' },
@@ -85,9 +85,9 @@ const USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/group/getMyGroupsAdminDetails' },
   { method: 'POST', path: '/group/getMyGroupsSGAdminDetails' },
   { method: 'POST', path: '/group/updateGroup' },
-  {method:'POST',path:'/groups/join'},
-  {method:'POST',path:'/groups/leave'},
-  {method:'POST',path:'/groups/checkMembership'},
+  { method: 'POST', path: '/groups/join' },
+  { method: 'POST', path: '/groups/leave' },
+  { method: 'POST', path: '/groups/checkMembership' },
 
   // Community meetings
   { method: 'GET', path: '/community-meetings' },
@@ -166,6 +166,9 @@ const USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/content-lib/user-doc-rating/:id' },
   { method: 'POST', path: '/content-lib/search' },
   { method: 'POST', path: '/content-lib/get-types' },
+  { method: 'POST', path: '/content-lib/reindex' },
+  { method: 'POST', path: '/content-lib/reindex-embeddings' },
+  { method: 'POST', path: '/content-lib/reindex-embedding/:id' },
   { method: 'GET', path: '/content-lib/get-event-info' },
 
   // Ratings
