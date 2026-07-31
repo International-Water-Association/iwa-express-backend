@@ -91,7 +91,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/content-lib/user-doc-rating/:id' },
   { method: 'POST', path: '/content-lib/search' },
   { method: 'GET', path: '/content-lib/get-event-info' },
-  { method: 'PUT', path: '/others/updateCulturalEvening' },
+
 
   // CL upload
   { method: 'POST', path: '/cl-upload' },
@@ -163,7 +163,7 @@ const PROXY_TOKEN_ROUTES = [
 
   // PIA discount
   { method: 'GET', path: '/pia-discount/VerifyPIACode/:code' },
-
+  { method: 'PUT', path: '/others/updateCulturalEvening' },
   // Public lookup routes
   { method: 'GET', path: '/event/country' },
   { method: 'GET', path: '/event/getEventGuestRegToken' },
