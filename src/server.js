@@ -51,12 +51,12 @@ app.use(cors({
 const rateLimitStore = new Map();
 
 const BLOCKED_ROUTES = [
- { method: 'GET', path: '/event-admin/syncDB' },
+  { method: 'GET', path: '/event-admin/syncDB' },
   { method: 'GET', path: '/membership/syncDB' },
 ];
 
 const USER_TOKEN_ROUTES = [
-  
+
   // Groups
   { method: 'GET', path: '/group/getMyGroups' },
   { method: 'GET', path: '/group/getMyGroup/:id' },
@@ -91,7 +91,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/content-lib/user-doc-rating/:id' },
   { method: 'POST', path: '/content-lib/search' },
   { method: 'GET', path: '/content-lib/get-event-info' },
-  {method:'PUT',path:'/others/updateCulturalEvening'},
+  { method: 'PUT', path: '/others/updateCulturalEvening' },
 
   // CL upload
   { method: 'POST', path: '/cl-upload' },
@@ -155,6 +155,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/others/getYWPVotingDetails' },
   { method: 'GET', path: '/others/getProfileForYWP/:id' },
   { method: 'GET', path: '/others/getApplicationDetails/:id' },
+  { method: 'GET', path: '/others/getCulturalEveningAlreadyRegistered/:id/:email' },
   { method: 'POST', path: '/others/sendEmailOther' },
   { method: 'GET', path: '/others/getPIA/:id' },
   { method: 'PUT', path: '/others/updatePIA' },
