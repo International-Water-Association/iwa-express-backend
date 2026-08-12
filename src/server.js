@@ -888,11 +888,11 @@ app.all('/api/proxy/*', async (req, res) => {
 
     res.status(response.status);
 
-    if (contentType.includes('application/json')) {
+    // if (contentType.includes('application/json')) {
       return res.json(responseText ? JSON.parse(responseText) : {});
-    }
+    // }
 
-    return res.status(502).json({ error: 'Proxy target did not return JSON' });
+    // return res.status(502).json({ error: 'Proxy target did not return JSON' });
   } catch (error) {
     if (error.name === 'AbortError') {
       return res.status(504).json({ error: 'Proxy request timed out' });
