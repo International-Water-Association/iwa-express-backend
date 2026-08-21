@@ -180,6 +180,7 @@ const PROXY_TOKEN_ROUTES = [
   // Public CMS / content routes
   { method: 'GET', path: '/dashboard' },
   { method: 'GET', path: '/announcement' },
+  {method:'PUT',path:'others/update-form'},
   { method: 'GET', path: '/announcements' },
   { method: 'GET', path: '/announcements/:id' },
   { method: 'GET', path: '/featured-articles' },
