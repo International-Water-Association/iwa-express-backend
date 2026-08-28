@@ -121,6 +121,9 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-attendee/insert-attendee' },
   { method: 'POST', path: '/event-attendee/insert-sub-event-attendee' },
   { method: 'POST', path: '/event-attendee/insert-single-attendee' },
+  {
+  method:'POST',path:'/event/validateEmailForGrp'
+  },
 
   { method: 'POST', path: '/event-attendee/apply-discount-code' },
   { method: 'POST', path: '/event-attendee/prepare-additional-ticket' },
