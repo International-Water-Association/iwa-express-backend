@@ -66,6 +66,7 @@ const USER_TOKEN_ROUTES = [
 const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-dialcode' },
   {method:'POST',path:'/others/detect-presentation-attachment'},
+
   { method: 'GET', path: '/others/broadcast/room-status/list' },
   { method: 'POST', path: '/others/broadcast/room-status' },
   { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
@@ -80,6 +81,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-registration/states-by-country' },
   { method: 'POST', path: '/event-registration/tickets' },
   { method: 'POST', path: '/event-registration/price-rules' },
+  {method:'POST',path:'/event-registration/check-recent-sales-order'},
   { method: 'POST', path: '/event-registration/check-discount-code' },
   { method: 'POST', path: '/event-registration/check-gala-dinner' },
   { method: 'POST', path: '/event-registration/guest-order-details' },
