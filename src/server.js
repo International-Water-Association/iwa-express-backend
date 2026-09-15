@@ -77,6 +77,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/others/updateFiletoSession' },
   { method: 'POST', path: '/others/broadcast' },
   { method: 'GET', path: '/others/broadcast/stream' },
+  {method:"GET",path:'/event-registration/sync-crowdcomms-by-sales-order/:id'},
   { method: 'POST', path: '/event-registration/ticket-types' },
   { method: 'POST', path: '/event-registration/states-by-country' },
   { method: 'POST', path: '/event-registration/tickets' },
