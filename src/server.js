@@ -59,14 +59,14 @@ const USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/user/me' },
   { method: 'POST', path: '/event-registration/generate-discount-code' },
   { method: 'POST', path: '/event-registration/generate-discount-code-job-status' },
-  { method: 'POST', path: '/event-registration/update-attendee-checkin' },
+
 ];
 
 const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-dialcode' },
   {method:'POST',path:'/others/detect-presentation-attachment'},
   { method: 'POST', path: '/event-registration/badge-attendees' },
-
+  { method: 'POST', path: '/event-registration/update-attendee-checkin' },
   { method: 'GET', path: '/others/broadcast/room-status/list' },
   { method: 'POST', path: '/others/broadcast/room-status' },
   { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
