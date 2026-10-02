@@ -67,6 +67,7 @@ const PROXY_TOKEN_ROUTES = [
   {method:'POST',path:'/others/detect-presentation-attachment'},
   { method: 'POST', path: '/event-registration/badge-attendees' },
   { method: 'POST', path: '/event-registration/update-attendee-checkin' },
+  {method:'PUT',path:'/others/wwce2026/session/:id/title'},
   { method: 'GET', path: '/others/broadcast/room-status/list' },
   { method: 'POST', path: '/others/broadcast/room-status' },
   { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
