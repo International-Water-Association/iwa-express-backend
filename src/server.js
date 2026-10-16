@@ -68,7 +68,17 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-registration/badge-attendees' },
   { method: 'POST', path: '/event-registration/update-attendee-checkin' },
   {method:'PUT',path:'/others/wwce2026/session/:id/title'},
-  {methodd:'GET',path:'webinar/:id  '},
+ { method: 'GET', path: '/webinar' },
+
+{ method: 'GET', path: '/webinar/get-webinar-questions/:id' },
+
+{ method: 'POST', path: '/webinar/add-registrant' },
+
+{ method: 'POST', path: '/webinar/authZoomSDK' },
+
+{ method: 'GET', path: '/webinar/get-attendee-id/:id/:attendeeId' },
+
+{ method: 'GET', path: '/webinar/:id' },
   { method: 'GET', path: '/others/broadcast/room-status/list' },
   { method: 'POST', path: '/others/broadcast/room-status' },
   { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
