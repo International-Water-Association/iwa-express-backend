@@ -64,21 +64,17 @@ const USER_TOKEN_ROUTES = [
 
 const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/contact/get-dialcode' },
-  {method:'POST',path:'/others/detect-presentation-attachment'},
+  { method: 'POST', path: '/event-registration/update-draft-sales-order' },
+  { method: 'POST', path: '/others/detect-presentation-attachment' },
   { method: 'POST', path: '/event-registration/badge-attendees' },
   { method: 'POST', path: '/event-registration/update-attendee-checkin' },
-  {method:'PUT',path:'/others/wwce2026/session/:id/title'},
- { method: 'GET', path: '/webinar' },
-
-{ method: 'GET', path: '/webinar/get-webinar-questions/:id' },
-
-{ method: 'POST', path: '/webinar/add-registrant' },
-
-{ method: 'POST', path: '/webinar/authZoomSDK' },
-
-{ method: 'GET', path: '/webinar/get-attendee-id/:id/:attendeeId' },
-
-{ method: 'GET', path: '/webinar/:id' },
+  { method: 'PUT', path: '/others/wwce2026/session/:id/title' },
+  { method: 'GET', path: '/webinar' },
+  { method: 'GET', path: '/webinar/get-webinar-questions/:id' },
+  { method: 'POST', path: '/webinar/add-registrant' },
+  { method: 'POST', path: '/webinar/authZoomSDK' },
+  { method: 'GET', path: '/webinar/get-attendee-id/:id/:attendeeId' },
+  { method: 'GET', path: '/webinar/:id' },
   { method: 'GET', path: '/others/broadcast/room-status/list' },
   { method: 'POST', path: '/others/broadcast/room-status' },
   { method: 'DELETE', path: '/event-attendee/delete-ticket/:key' },
@@ -90,12 +86,12 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/others/updateFiletoSession' },
   { method: 'POST', path: '/others/broadcast' },
   { method: 'GET', path: '/others/broadcast/stream' },
-  {method:"GET",path:'/event-registration/sync-crowdcomms-by-sales-order/:id'},
+  { method: "GET", path: '/event-registration/sync-crowdcomms-by-sales-order/:id' },
   { method: 'POST', path: '/event-registration/ticket-types' },
   { method: 'POST', path: '/event-registration/states-by-country' },
   { method: 'POST', path: '/event-registration/tickets' },
   { method: 'POST', path: '/event-registration/price-rules' },
-  {method:'POST',path:'/event-registration/check-recent-sales-order'},
+  { method: 'POST', path: '/event-registration/check-recent-sales-order' },
   { method: 'POST', path: '/event-registration/check-discount-code' },
   { method: 'POST', path: '/event-registration/check-gala-dinner' },
   { method: 'POST', path: '/event-registration/guest-order-details' },
@@ -140,7 +136,7 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-attendee/insert-single-attendee' },
 
   {
-  method:'POST',path:'/event/validateEmailForGrp'
+    method: 'POST', path: '/event/validateEmailForGrp'
   },
 
   { method: 'POST', path: '/event-attendee/apply-discount-code' },
