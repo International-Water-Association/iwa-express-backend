@@ -81,6 +81,8 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'GET', path: '/event-attendee/getTechnicalTour' },
   {method:'PUT',path:'/others/sessions/:id/faculty'},
   {method:'PUT',path:'/others/sessions/:id/abstract-order'},
+  {method:'PUT',path:'/others/sessions/:id/presenter-checkins/:abstractId'},
+  {method:'GET',path:'/others/sessions/:id/presenter-checkins'},
   { method: 'GET', path: '/others/get-wdce2025-sessions' },
   { method: 'GET', path: '/others/get-wdce2025-abstract/:id' },
   { method: 'GET', path: '/others/search-wdce2025-abstract/:key' },
