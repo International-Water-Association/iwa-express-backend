@@ -147,6 +147,8 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/upload' },
 
   // Others / forms / PIA / YWP
+  {method:'POST',path:'/content-lib/presign-upload'},
+  {method:"POST",path:'/content-lib/confirm-upload'},
   { method: 'GET', path: '/others/getSingleForm/:id' },
   { method: 'POST', path: '/others/validate-gm-registration' },
   { method: 'POST', path: '/others/insertForm' },
