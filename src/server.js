@@ -77,6 +77,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/people-search/report' },
   { method: 'GET', path: '/people-search/getSearch' },
   { method: 'POST', path: '/people-search/getSearch' },
+  {method:'GET',path:'/chat-system/getHistory/:conversationID/:offset/:limit'},
 
   // Groups / communities
   { method: 'GET', path: '/group/getMyGroups' },
