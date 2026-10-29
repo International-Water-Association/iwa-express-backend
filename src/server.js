@@ -56,13 +56,14 @@ const BLOCKED_ROUTES = [
 ];
 
 const USER_TOKEN_ROUTES = [
-  { method: 'GET', path: '/user/me' },
   { method: 'POST', path: '/event-registration/generate-discount-code' },
   { method: 'POST', path: '/event-registration/generate-discount-code-job-status' },
 
 ];
 
 const PROXY_TOKEN_ROUTES = [
+    { method: 'GET', path: '/user/me' },
+
   { method: 'GET', path: '/contact/get-dialcode' },
   { method: 'POST', path: '/event-registration/update-draft-sales-order' },
   { method: 'POST', path: '/others/detect-presentation-attachment' },
