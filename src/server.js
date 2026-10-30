@@ -105,6 +105,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'POST', path: '/contact-palls' },
   { method: 'PUT', path: '/contact-palls/:id' },
   { method: 'DELETE', path: '/contact-palls/:id' },
+  {method:'GET',path:'/contact/country-membership-counts'},
 
   // Posts
   { method: 'POST', path: '/post/getPost' },
