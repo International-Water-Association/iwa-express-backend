@@ -53,11 +53,12 @@ const rateLimitStore = new Map();
 const BLOCKED_ROUTES = [
   { method: 'GET', path: '/event-admin/syncDB' },
   { method: 'GET', path: '/membership/syncDB' },
-    { method: 'GET', path: '/user/me' },
 
 ];
 
 const USER_TOKEN_ROUTES = [
+      { method: 'GET', path: '/user/me' },
+
   { method: 'POST', path: '/contact/updateprivacy' },
   { method: 'POST', path: '/contact/updatecontact' },
   { method: 'GET', path: '/contact/get-contact/:id' },
