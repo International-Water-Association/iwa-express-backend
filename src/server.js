@@ -65,6 +65,7 @@ const PROXY_TOKEN_ROUTES = [
     { method: 'GET', path: '/user/me' },
 
   { method: 'GET', path: '/contact/get-dialcode' },
+  {method:'GET',path:'/contact/country-membership-counts'},
   { method: 'POST', path: '/event-registration/update-draft-sales-order' },
   { method: 'POST', path: '/others/detect-presentation-attachment' },
   { method: 'POST', path: '/event-registration/badge-attendees' },
