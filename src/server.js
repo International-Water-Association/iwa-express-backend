@@ -58,7 +58,7 @@ const BLOCKED_ROUTES = [
 
 const USER_TOKEN_ROUTES = [
       { method: 'GET', path: '/user/me' },
-
+{method:'POST',path:'/content-lib/pdf-preview/:id'},
   { method: 'POST', path: '/contact/updateprivacy' },
   { method: 'POST', path: '/contact/updatecontact' },
   { method: 'GET', path: '/contact/get-contact/:id' },
