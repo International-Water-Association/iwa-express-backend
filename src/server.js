@@ -78,6 +78,7 @@ const USER_TOKEN_ROUTES = [
   { method: 'GET', path: '/content-lib/:id' },
   { method: 'POST', path: '/content-lib' },
   { method: 'POST', path: '/content-lib/get-documents' },
+  { method: 'POST', path: '/content-lib/get-documents-tc' },
   { method: 'POST', path: '/content-lib/update-document' },
   { method: 'POST', path: '/content-lib/delete-document' },
   { method: 'POST', path: '/content-lib/generatePresignedUrl' },
