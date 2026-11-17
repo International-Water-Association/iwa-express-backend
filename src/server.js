@@ -251,54 +251,32 @@ function isAllowedOrigin(origin) {
  */
 function isBrowserRequest(req) {
   const origin = req.headers.origin || '';
-  const referer = req.headers.referer || '';
-  const secFetchSite = req.headers['sec-fetch-site'];
-  const secFetchMode = req.headers['sec-fetch-mode'];
-  const secFetchDest = req.headers['sec-fetch-dest'];
-  const userAgent = req.headers['user-agent'] || '';
 
-  if (!origin) {
+  // Only allow configured frontend origins
+  if (!origin || !isAllowedOrigin(origin)) {
     return false;
   }
 
-  if (!isAllowedOrigin(origin)) {
+  const fetchSite = req.headers['sec-fetch-site'];
+  const fetchMode = req.headers['sec-fetch-mode'];
+  const fetchDest = req.headers['sec-fetch-dest'];
+
+  // Reject inconsistent Fetch Metadata values when provided.
+  if (
+    fetchSite &&
+    !['same-origin', 'same-site', 'cross-site'].includes(fetchSite)
+  ) {
     return false;
   }
 
-  if (!referer || !referer.startsWith(`${origin}/`)) {
+  if (
+    fetchMode &&
+    !['cors', 'same-origin'].includes(fetchMode)
+  ) {
     return false;
   }
 
-  /**
-   * Browser fetch/XHR sends Sec-Fetch-* headers.
-   * Postman/curl usually do not send these unless manually spoofed.
-   */
-  if (!secFetchSite || !secFetchMode || !secFetchDest) {
-    return false;
-  }
-
-  if (!['same-origin', 'same-site', 'cross-site'].includes(secFetchSite)) {
-    return false;
-  }
-
-  /**
-   * Angular HttpClient/fetch usually sends mode "cors".
-   */
-  if (!['cors', 'same-origin'].includes(secFetchMode)) {
-    return false;
-  }
-
-  /**
-   * XHR/fetch usually sends dest "empty".
-   */
-  if (secFetchDest !== 'empty') {
-    return false;
-  }
-
-  /**
-   * Basic block for common API clients.
-   */
-  if (/postman|curl|insomnia|httpie|wget|python-requests|axios/i.test(userAgent)) {
+  if (fetchDest && fetchDest !== 'empty') {
     return false;
   }
 
