@@ -143,7 +143,12 @@ const PROXY_TOKEN_ROUTES = [
   { method: 'POST', path: '/event-attendee/insert-attendee' },
   { method: 'POST', path: '/event-attendee/insert-sub-event-attendee' },
   { method: 'POST', path: '/event-attendee/insert-single-attendee' },
-
+  { method: 'POST', path: '/universal-payment/checkout' },
+  { method: 'POST', path: '/universal-payment/card-attempt' },
+  { method: 'POST', path: '/universal-payment/confirm' },
+  { method: 'POST', path: '/universal-payment/invoice-request' },
+  { method: 'POST', path: '/universal-payment/invoice-document' },
+  { method: 'POST', path: '/universal-payment/receipt-document' },
   {
     method: 'POST', path: '/event/validateEmailForGrp'
   },
