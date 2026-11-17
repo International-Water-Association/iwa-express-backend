@@ -179,7 +179,12 @@ const PROXY_TOKEN_ROUTES = [
 
   // Public email / form routes only if they are intentionally public
   { method: 'POST', path: '/others/sendEmailOther' },
-
+  { method: 'POST', path: '/universal-payment/checkout' },
+  { method: 'POST', path: '/universal-payment/card-attempt' },
+  { method: 'POST', path: '/universal-payment/confirm' },
+  { method: 'POST', path: '/universal-payment/invoice-request' },
+  { method: 'POST', path: '/universal-payment/invoice-document' },
+  { method: 'POST', path: '/universal-payment/receipt-document' },
   // Public CMS / content routes
   { method: 'GET', path: '/dashboard' },
   { method: 'GET', path: '/announcement' },
